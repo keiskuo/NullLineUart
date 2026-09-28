@@ -1,0 +1,72 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 4,
+    "minor": 2,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "riscv-base",
+      "hidden": true,
+      "displayName": "CH57x RISC-V Debug",
+      "description": "Configure the CH57x firmware with the WCH RISC-V toolchain.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "toolchainFile": "${sourceDir}/cmake/riscv-wch-elf-gcc.cmake",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "riscv-debug",
+      "displayName": "CH57x RISC-V Debug",
+      "inherits": "riscv-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "riscv-release",
+      "displayName": "CH57x RISC-V Release",
+      "inherits": "riscv-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "riscv-relwithdebinfo",
+      "displayName": "CH57x RISC-V RelWithDebInfo",
+      "inherits": "riscv-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "riscv-minsizerel",
+      "displayName": "CH57x RISC-V MinSizeRel",
+      "inherits": "riscv-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "riscv-debug",
+      "configurePreset": "riscv-debug"
+    },
+    {
+      "name": "riscv-release",
+      "configurePreset": "riscv-release"
+    },
+    {
+      "name": "riscv-relwithdebinfo",
+      "configurePreset": "riscv-relwithdebinfo"
+    },
+    {
+      "name": "riscv-minsizerel",
+      "configurePreset": "riscv-minsizerel"
+    }
+  ]
+}

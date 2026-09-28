@@ -1,0 +1,32 @@
+add_library(ch57xstdlib STATIC)
+
+target_sources(ch57xstdlib
+PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_clk.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_cmp.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_flash.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_gpio.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_i2c.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_keyscan.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_pwm.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_pwr.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_spi.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_sys.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_timer.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_uart.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_usbdev.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_usbhostBase.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CH57x_usbhostClass.c
+)
+target_include_directories(ch57xstdlib 
+PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/RVMSIS
+)
+
+# ---- 宏定义：仅在 Debug / RelWithDebInfo 构建类型下开启 DEBUG ----
+# SDK 依赖 DEBUG 宏（CH57x_common.h 的 PRINT(...) printf、CH57x_sys.c 的 _write 串口重定向），
+# 用生成器表达式按配置绑定；Release/MinSizeRel 不定义（Release 自带 NDEBUG）。# SDK 库内部的 PRINT(...)（CH57x_usbhostBase.c / CH57x_usbhostClass.c）依赖同一个宏
+target_compile_definitions(ch57xstdlib PRIVATE
+    $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:DEBUG=1>
+)

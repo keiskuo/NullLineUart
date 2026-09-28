@@ -1,0 +1,62 @@
+cmake_minimum_required(VERSION 4.2)
+project(ch57xTemplate C CXX ASM)
+
+add_subdirectory(StdPeriphDriver)
+
+# ---- 源文件（必须包含启动文件）----
+add_executable(${PROJECT_NAME})
+
+target_sources(${PROJECT_NAME} 
+PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Main.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/startup_CH572.S
+)
+target_compile_options(${PROJECT_NAME} PRIVATE
+    -Wall 
+    -Wextra
+)
+
+# ---- C / C++ 标准 ----
+set_target_properties(${PROJECT_NAME} 
+PROPERTIES
+    C_STANDARD 99
+    C_STANDARD_REQUIRED ON
+    C_EXTENSIONS ON          # 对应 -std=gnu99
+    CXX_STANDARD 11
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS ON         # 对应 -std=gnu++11
+)
+
+# ---- 链接脚本与库搜索路径 ----
+target_link_options(${PROJECT_NAME} 
+PRIVATE
+    -T${CMAKE_CURRENT_SOURCE_DIR}/Link.ld
+    -Wl,-Map,${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.map
+)
+
+# ---- 如果有需要链接的库（从 Makefile 的 LDLIBS 中提取）----
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    ch57xstdlib
+    ${CMAKE_CURRENT_SOURCE_DIR}/StdPeriphDriver/src/libISP572.a
+)
+
+# ---- 产物后缀：采用 WCH 习惯的 .elf（下面的 $<TARGET_FILE:...> 会自动跟着变）----
+set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".elf")
+
+set(HEX_FILE ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.hex)
+set(LST_FILE ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.lst)
+set(BIN_FILE ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.bin)
+
+# ---- 构建后产物：hex / 反汇编清单 / 体积报告 ----
+add_custom_command(TARGET ${PROJECT_NAME}
+    POST_BUILD
+    COMMAND ${CMAKE_OBJCOPY} -O ihex   $<TARGET_FILE:${PROJECT_NAME}> ${HEX_FILE}
+    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${PROJECT_NAME}> ${BIN_FILE}
+    COMMAND ${CMAKE_OBJDUMP} --source --all-headers --demangle -M xw
+                             --line-numbers --wide
+                             $<TARGET_FILE:${PROJECT_NAME}> > ${LST_FILE}
+    COMMAND ${CMAKE_SIZE} --format=berkeley $<TARGET_FILE:${PROJECT_NAME}>
+    BYPRODUCTS ${HEX_FILE} ${LST_FILE} ${BIN_FILE}
+    COMMENT "Generating ${PROJECT_NAME}.hex / .bin / .lst and size report"
+    VERBATIM
+)
