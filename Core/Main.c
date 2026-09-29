@@ -23,8 +23,10 @@ __HIGH_CODE
 int main()
 {
     R16_PIN_ALTERNATE &= ~RB_PIN_DEBUG_EN;
-    HSECFG_Capacitance(HSECap_18p);
+    HSECFG_Capacitance(HSECap_12p);
     SetSysClock(CLK_SOURCE_HSE_PLL_100MHz);
+    /* SysTick 作为延时基准：1mS 计数周期，只启动计数器、不使能Systick中断 */
+    __SysTick_Config(FREQ_SYS / 1000); // SysTick 1ms 中断
     GPIOA_SetBits(bTXD_4);
     GPIOA_ModeCfg(bTXD_4, GPIO_ModeOut_PP_5mA);
 

@@ -178,14 +178,14 @@ void WWDG_ResetCfg(FunctionalState s);
 void WWDG_ClearFlag(void);
 
 /**
- * @brief   uS 延时
+ * @brief   uS 延时。SysTick 已启动时基于 SysTick 计数器计时，否则退回软件空循环
  *
  * @param   t       - 时间参数
  */
 void mDelayuS(uint16_t t);
 
 /**
- * @brief   mS 延时
+ * @brief   mS 延时。SysTick 已启动时基于 SysTick 计数器计时，否则退回软件空循环
  *
  * @param   t       - 时间参数
  */

@@ -311,17 +311,82 @@ void NMI_Handler(void)
     while(1);
 }
 
+/*******************************************************************************
+ * @author    keiskuo (ke.l@foxmail.com)
+ * @date      2026-09-29
+ * @param   ticks   - 需要延时的 SysTick 时钟个数
+ * @return    __HIGH_CODE 
+ * 
+ * @return  1       - 已使用 SysTick 完成延时
+ *          0       - SysTick 未启动或配置无法计时，需由调用者改用其它方式
+  * @note   SysTick 计数周期需明显大于一次轮询的开销(数十个时钟)，
+ *          例如 1ms 计数周期的 SysTick 可放心使用
+ ******************************************************************************/
+__HIGH_CODE
+static uint8_t SysTickDelay(uint64_t ticks)
+{
+    if((ticks == 0) || ((SysTick->CTLR & SysTick_CTLR_STE) == 0) || (SysTick->CMP == 0))
+    {
+        return 0; /* 计数器未启动 */
+    }
+
+    uint32_t cmp     = SysTick->CMP;
+    uint32_t prev    = SysTick->CNTL;
+    uint64_t elapsed = 0;
+
+    while(elapsed < ticks)
+    {
+        if((SysTick->CTLR & SysTick_CTLR_STE) == 0)
+        {
+            return 0; /* 等待期间被关闭，直接退出，避免死等 */
+        }
+
+        uint32_t now = SysTick->CNTL;
+        if(now == prev)
+        {
+            continue; /* 仍在同一个计数上 */
+        }
+        uint32_t delta = 0;
+        if((SysTick->CTLR & SysTick_CTLR_MODE) == 0)
+        {
+            if(now > prev)
+            {
+                delta = now - prev; /* 正常递增；自由运行时即模 2^32 的差值 */
+            }
+            else
+            {
+                delta = (cmp - prev) + now; /* 跨过重装载点，按一个完整周期补齐 */
+            }
+        }
+        else
+        {
+            if(now < prev)
+            {
+                delta = prev - now; /* 正常递减；自由运行时即模 2^32 的差值 */
+            }
+            else
+            {
+                delta = (prev + cmp) - now; /* 跨过重装载点，按一个完整周期补齐 */
+            }
+        }
+
+        elapsed += delta;
+        prev = now;
+    }
+    return 1;
+}
+
 /*********************************************************************
- * @fn      mDelayuS
+ * @fn      loopDelayus
  *
- * @brief   uS 延时
+ * @brief   uS 软件空循环延时，仅在 SysTick 未启动时使用（原 mDelayuS 实现）
  *
  * @param   t       - 时间参数
  *
  * @return  none
  */
 __HIGH_CODE
-void mDelayuS(uint16_t t)
+static void loopDelayus(uint16_t t)
 {
     uint32_t i;
 #if(FREQ_SYS == 100000000)
@@ -374,9 +439,46 @@ void mDelayuS(uint16_t t)
 }
 
 /*********************************************************************
+ * @fn      mDelayuS
+ *
+ * @brief   us延时,SysTick已启动时基于SysTick计数器计时，否则退回软件空循环
+ *
+ * @param   t       - 时间参数
+ *
+ * @return  none
+ */
+__HIGH_CODE
+void mDelayuS(uint16_t t)
+{
+    uint32_t sys_clock;
+    uint64_t ticks;
+
+    if(t == 0)
+    {
+        return;
+    }
+
+    sys_clock = GetSysClock();
+    if(sys_clock == 0)
+    {
+        sys_clock = FREQ_SYS;
+    }
+    if((SysTick->CTLR & SysTick_CTLR_STCLK) == 0)
+    {
+        sys_clock >>= 3;                                /* STCLK=0 时 SysTick 时基为 HCLK/8 */
+    }
+    ticks = (((uint64_t)sys_clock * t) + 999999) / 1000000;     /* 向上取整，保证不短于t uS */
+
+    if(SysTickDelay(ticks) == 0)
+    {
+        loopDelayus(t);                             /* SysTick 未启动，使用原软件延时 */
+    }
+}
+
+/*********************************************************************
  * @fn      mDelaymS
  *
- * @brief   mS 延时
+ * @brief   ms 延时。SysTick已启动时基于SysTick计数器计时，否则退回软件空循环
  *
  * @param   t       - 时间参数
  *
@@ -385,10 +487,30 @@ void mDelayuS(uint16_t t)
 __HIGH_CODE
 void mDelaymS(uint16_t t)
 {
-    do
+    if(t == 0)
     {
-        mDelayuS(1000);
-    }while(--t);
+        return;
+    }
+
+    uint32_t sys_clock = GetSysClock();
+    if(sys_clock == 0)
+    {
+        sys_clock = FREQ_SYS;
+    }
+    if((SysTick->CTLR & SysTick_CTLR_STCLK) == 0)
+    {
+        sys_clock >>= 3; /* STCLK=0 时 SysTick 时基为 HCLK/8 */
+    }
+    uint64_t ticks = (((uint64_t)sys_clock * t) + 999) / 1000; /* 向上取整，保证不短于t mS */
+
+    if(SysTickDelay(ticks) == 0)
+    {
+        do
+        {
+            loopDelayus(1000); /* SysTick 未启动，使用原软件延时 */
+        }
+        while(--t);
+    }
 }
 
 #ifdef DEBUG
