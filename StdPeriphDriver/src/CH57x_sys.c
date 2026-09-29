@@ -1,4 +1,4 @@
-﻿/********************************** (C) COPYRIGHT *******************************
+/********************************** (C) COPYRIGHT *******************************
  * File Name          : CH57x_SYS.c
  * Author             : WCH
  * Version            : V1.2
@@ -85,7 +85,6 @@ void SetSysClock(SYS_CLKTypeDef sc)
         sys_safe_access_enable();
         R8_SLP_POWER_CTRL |= 0x40;
         R8_CLK_SYS_CFG = sc;
-        R32_MISC_CTRL |= (7<<3)|(7<<6);
         sys_safe_access_disable();
     }
 }
@@ -311,75 +310,141 @@ void NMI_Handler(void)
     while(1);
 }
 
-/*******************************************************************************
- * @author    keiskuo (ke.l@foxmail.com)
- * @date      2026-09-29
- * @param   ticks   - 需要延时的 SysTick 时钟个数
- * @return    __HIGH_CODE 
- * 
- * @return  1       - 已使用 SysTick 完成延时
- *          0       - SysTick 未启动或配置无法计时，需由调用者改用其它方式
-  * @note   SysTick 计数周期需明显大于一次轮询的开销(数十个时钟)，
- *          例如 1ms 计数周期的 SysTick 可放心使用
- ******************************************************************************/
+/* Polling one step costs about 15~30 SysTick clocks, so a shorter 
+ * period than this cannot be timed by polling. */
+#define SYS_SYSTICK_MIN_PERIOD 1000
+
+/*********************************************************************
+ * @fn      SysTickWrapTicks
+ *
+ * @brief   Number of SysTick clocks in one wrap around of the counter.
+ *          With auto reload (STRE = 1) the counter restarts from 0 
+ *          (up) or from CMP (down) when CMP or 0 is reached, so the 
+ *          period is CMP + 1. Free running (STRE = 0, or CMP = 
+ *          0xFFFFFFFF) wrap at 2^32, which is expressed here as 0; CMP
+ *          + 1 overflows to 0 in that case too.
+ *
+ * @return  clocks per wrap (0 means 2^32)
+ */
+__HIGH_CODE
+static uint32_t SysTickWrapTicks(void)
+{
+    if((SysTick->CTLR & SysTick_CTLR_STRE) == 0)
+    {
+        return 0; /* free running: 2^32 */
+    }
+    return SysTick->CMP + 1; /* 0 means 2^32 as well */
+}
+
+/*********************************************************************
+ * @fn      SysTickCount
+ *
+ * @brief   Read the counter as a value that only grows with time, so 
+ *          that the waiting loop does not have to care about the 
+ *          direction: MODE = 0 counts up and CNTL is used as is, MODE
+ *          = 1 counts down and (period - 1) - CNTL mirrors it.
+ *
+ * @return  normalised counter value
+ */
+__HIGH_CODE
+static uint32_t SysTickCount(void)
+{
+    if(SysTick->CTLR & SysTick_CTLR_MODE) /* bit4 = 1: counting down */
+    {
+        return (SysTickWrapTicks() - 1) - SysTick->CNTL;
+    }
+    return SysTick->CNTL; /* bit4 = 0: counting up */
+}
+
+/*********************************************************************
+ * @fn      SysTickDelay
+ *
+ * @brief   Wait for "ticks" SysTick clocks. It only READS SysTick 
+ *          (CTLR/CMP/CNTL) and never writes CTLR/CMP/SR, so a user's 
+ *          own SysTick interrupt, its period and flags are not 
+ *          disturbed.
+ *
+ * @param   ticks   - number of SysTick clocks to wait
+ *
+ * @return  1       - delay finished using SysTick
+ *          0       - SysTick cannot be used (not running, period too 
+ *                    short, or stopped while waiting): the caller uses 
+ *                    the software loop instead
+ */
 __HIGH_CODE
 static uint8_t SysTickDelay(uint64_t ticks)
 {
-    if((ticks == 0) || ((SysTick->CTLR & SysTick_CTLR_STE) == 0) || (SysTick->CMP == 0))
+    if((ticks == 0) || ((SysTick->CTLR & SysTick_CTLR_STE) == 0))
     {
-        return 0; /* 计数器未启动 */
+        return 0; /* counter is not running */
     }
 
-    uint32_t cmp     = SysTick->CMP;
-    uint32_t prev    = SysTick->CNTL;
-    uint64_t elapsed = 0;
+    uint32_t period = SysTickWrapTicks();
+    if((period != 0) && (period < SYS_SYSTICK_MIN_PERIOD))
+    {
+        return 0; /* too short to be polled */
+    }
 
-    while(elapsed < ticks)
+    uint32_t prev = SysTickCount();
+    uint64_t tcnt = 0;
+    while(tcnt < ticks)
     {
         if((SysTick->CTLR & SysTick_CTLR_STE) == 0)
         {
-            return 0; /* 等待期间被关闭，直接退出，避免死等 */
+            return 0; /* stopped while waiting */
         }
 
-        uint32_t now = SysTick->CNTL;
+        uint32_t now = SysTickCount();
         if(now == prev)
         {
-            continue; /* 仍在同一个计数上 */
-        }
-        uint32_t delta = 0;
-        if((SysTick->CTLR & SysTick_CTLR_MODE) == 0)
-        {
-            if(now > prev)
-            {
-                delta = now - prev; /* 正常递增；自由运行时即模 2^32 的差值 */
-            }
-            else
-            {
-                delta = (cmp - prev) + now; /* 跨过重装载点，按一个完整周期补齐 */
-            }
-        }
-        else
-        {
-            if(now < prev)
-            {
-                delta = prev - now; /* 正常递减；自由运行时即模 2^32 的差值 */
-            }
-            else
-            {
-                delta = (prev + cmp) - now; /* 跨过重装载点，按一个完整周期补齐 */
-            }
+            continue; /* same value: keep waiting */
         }
 
-        elapsed += delta;
+        /* The normalised value grows, so the difference is the elapsed clocks.
+         * If it shrank instead, the counter wrapped in between: add the rest
+         * of the period plus the new value. */
+        uint32_t step = (now > prev) ? (now - prev) : (period - prev + now);
+        tcnt += step;
         prev = now;
     }
     return 1;
 }
 
 /*********************************************************************
+ * @fn      SysTimeToTicks
+ *
+ * @brief   Convert the time t, given in microseconds, into the number of
+ *          SysTick clocks the delay has to wait. The frequency comes from
+ *          GetSysClock(), and STCLK = 0 means the time base is HCLK / 8.
+ *          The result is rounded up, so the delay is never too short.
+ *
+ * @param   t       - time value
+ * @param   unitUs  - how many microseconds one unit of t stands for:
+ *                    1 when t is in us, 1000 when t is in ms
+ *
+ * @return  number of SysTick clocks
+ */
+__HIGH_CODE
+static uint64_t SysTimeToTicks(uint16_t t, uint32_t unitUs)
+{
+    uint32_t sys_clock = GetSysClock();
+    uint64_t ticks;
+
+    if((SysTick->CTLR & SysTick_CTLR_STCLK) == 0)
+    {
+        sys_clock >>= 3; /* STCLK = 0: time base is HCLK / 8 */
+    }
+
+    /* round up, so the delay is never shorter than asked */
+    ticks = ((((uint64_t)sys_clock * t) * unitUs) + (1000000 - 1)) / 1000000;
+
+    return ticks ? ticks : 1; /* 0 means 1 tick at least */
+}
+
+/*********************************************************************
  * @fn      loopDelayus
  *
- * @brief   uS 软件空循环延时，仅在 SysTick 未启动时使用（原 mDelayuS 实现）
+ * @brief   uS 延时
  *
  * @param   t       - 时间参数
  *
@@ -441,44 +506,32 @@ static void loopDelayus(uint16_t t)
 /*********************************************************************
  * @fn      mDelayuS
  *
- * @brief   us延时,SysTick已启动时基于SysTick计数器计时，否则退回软件空循环
+ * @brief   uS delay. Uses the SysTick counter when it is running 
+ *          (read-only, so a user's SysTick interrupt is not disturbed),
+ *          otherwise the original software loop.
  *
- * @param   t       - 时间参数
+ * @param   t       - time parameter
  *
  * @return  none
  */
 __HIGH_CODE
 void mDelayuS(uint16_t t)
 {
-    uint32_t sys_clock;
-    uint64_t ticks;
-
     if(t == 0)
     {
         return;
     }
 
-    sys_clock = GetSysClock();
-    if(sys_clock == 0)
+    if(SysTickDelay(SysTimeToTicks(t, 1)) == 0)
     {
-        sys_clock = FREQ_SYS;
-    }
-    if((SysTick->CTLR & SysTick_CTLR_STCLK) == 0)
-    {
-        sys_clock >>= 3;                                /* STCLK=0 时 SysTick 时基为 HCLK/8 */
-    }
-    ticks = (((uint64_t)sys_clock * t) + 999999) / 1000000;     /* 向上取整，保证不短于t uS */
-
-    if(SysTickDelay(ticks) == 0)
-    {
-        loopDelayus(t);                             /* SysTick 未启动，使用原软件延时 */
+        loopDelayus(t); /* SysTick unavailable */
     }
 }
 
 /*********************************************************************
  * @fn      mDelaymS
  *
- * @brief   ms 延时。SysTick已启动时基于SysTick计数器计时，否则退回软件空循环
+ * @brief   mS 延时
  *
  * @param   t       - 时间参数
  *
@@ -492,22 +545,11 @@ void mDelaymS(uint16_t t)
         return;
     }
 
-    uint32_t sys_clock = GetSysClock();
-    if(sys_clock == 0)
-    {
-        sys_clock = FREQ_SYS;
-    }
-    if((SysTick->CTLR & SysTick_CTLR_STCLK) == 0)
-    {
-        sys_clock >>= 3; /* STCLK=0 时 SysTick 时基为 HCLK/8 */
-    }
-    uint64_t ticks = (((uint64_t)sys_clock * t) + 999) / 1000; /* 向上取整，保证不短于t mS */
-
-    if(SysTickDelay(ticks) == 0)
+    if(SysTickDelay(SysTimeToTicks(t, 1000)) == 0)
     {
         do
         {
-            loopDelayus(1000); /* SysTick 未启动，使用原软件延时 */
+            loopDelayus(1000); /* SysTick unavailable */
         }
         while(--t);
     }
