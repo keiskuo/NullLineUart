@@ -310,79 +310,74 @@ void NMI_Handler(void)
     while(1);
 }
 
-/* Polling one step costs about 15~30 SysTick clocks, so a shorter 
- * period than this cannot be timed by polling. */
+/* 轮询一次大约需要 15~30 个 SysTick 时钟，周期比这更短就没法用SysTick计时 */ 
 #define SYS_SYSTICK_MIN_PERIOD 1000
 
 /*********************************************************************
  * @fn      SysTickWrapTicks
  *
- * @brief   Number of SysTick clocks in one wrap around of the counter.
- *          With auto reload (STRE = 1) the counter restarts from 0 
- *          (up) or from CMP (down) when CMP or 0 is reached, so the 
- *          period is CMP + 1. Free running (STRE = 0, or CMP = 
- *          0xFFFFFFFF) wrap at 2^32, which is expressed here as 0; CMP
- *          + 1 overflows to 0 in that case too.
+ * @brief   计数器从起点数回起点所需的 SysTick 时钟数。
+ *          自动重装载（STRE = 1）时，计数到 CMP（向上）或 0（向下）就重新 
+ *          开始，所以一个周期是 CMP + 1 个时钟。自由运行（STRE = 0， 
+ *          或者 CMP = 0xFFFFFFFF）时数到 2^32 才回起点，这里用 0 表示； 
+ *          此时 CMP + 1 也会溢出成 0。
  *
- * @return  clocks per wrap (0 means 2^32)
+ * @return  一个周期的时钟数（0 表示 2^32）
  */
 __HIGH_CODE
 static uint32_t SysTickWrapTicks(void)
 {
     if((SysTick->CTLR & SysTick_CTLR_STRE) == 0)
     {
-        return 0; /* free running: 2^32 */
+        return 0; /* 自由运行：2^32 */
     }
-    return SysTick->CMP + 1; /* 0 means 2^32 as well */
+    return SysTick->CMP + 1; /* 此时也是 2^32 */
 }
 
 /*********************************************************************
  * @fn      SysTickCount
  *
- * @brief   Read the counter as a value that only grows with time, so 
- *          that the waiting loop does not have to care about the 
- *          direction: MODE = 0 counts up and CNTL is used as is, MODE
- *          = 1 counts down and (period - 1) - CNTL mirrors it.
+ * @brief   读取计数器，并转换成一个只增不减的值，这样等待时就不用关心计数 
+ *          方向：MODE = 0 向上计数，直接用 CNTL；MODE = 1 向下计数，用 
+ *          （周期 - 1）- CNTL 把方向反过来。
  *
- * @return  normalised counter value
+ * @return  转换后的计数值
  */
 __HIGH_CODE
 static uint32_t SysTickCount(void)
 {
-    if(SysTick->CTLR & SysTick_CTLR_MODE) /* bit4 = 1: counting down */
+    if(SysTick->CTLR & SysTick_CTLR_MODE) /* bit4 = 1：向下计数 */
     {
         return (SysTickWrapTicks() - 1) - SysTick->CNTL;
     }
-    return SysTick->CNTL; /* bit4 = 0: counting up */
+    return SysTick->CNTL; /* bit4 = 0：向上计数 */
 }
 
 /*********************************************************************
  * @fn      SysTickDelay
  *
- * @brief   Wait for "ticks" SysTick clocks. It only READS SysTick 
- *          (CTLR/CMP/CNTL) and never writes CTLR/CMP/SR, so a user's 
- *          own SysTick interrupt, its period and flags are not 
- *          disturbed.
+ * @brief   等待指定数量的 SysTick 时钟。整个过程只读取 SysTick（CTLR/CMP/ 
+ *          CNTL），从不写入 CTLR/CMP/SR，所以应用自己用的 SysTick 中断、 
+ *          它的周期和标志都不会被影响。 
  *
- * @param   ticks   - number of SysTick clocks to wait
+ * @param   ticks   - 需要等待的 SysTick 时钟数
  *
- * @return  1       - delay finished using SysTick
- *          0       - SysTick cannot be used (not running, period too 
- *                    short, or stopped while waiting): the caller uses 
- *                    the software loop instead
- */
+ * @return  1       - 已经用 SysTick 完成延时
+ *          0       - SysTick 不能用于计时（没有启动、周期太短没法轮询、或 
+ *                   者等待过程中被关掉），调用者改用原来的空循环
+*/
 __HIGH_CODE
 static uint8_t SysTickDelay(uint64_t ticks)
 {
     if((ticks == 0) || ((SysTick->CTLR & SysTick_CTLR_STE) == 0))
     {
-        return 0; /* counter is not running */
+        return 0; /* 计数器没有在跑 */
     }
 
     uint32_t period = SysTickWrapTicks();
     if((period != 0) && (period < SYS_SYSTICK_MIN_PERIOD))
     {
-        return 0; /* too short to be polled */
+        return 0; /* 周期太短，轮询来不及 */
     }
 
     uint32_t prev = SysTickCount();
@@ -391,18 +386,17 @@ static uint8_t SysTickDelay(uint64_t ticks)
     {
         if((SysTick->CTLR & SysTick_CTLR_STE) == 0)
         {
-            return 0; /* stopped while waiting */
+            return 0; /* 等待过程中被关掉了 */
         }
 
         uint32_t now = SysTickCount();
         if(now == prev)
         {
-            continue; /* same value: keep waiting */
+            continue; /* 读数没变，继续等 */
         }
 
-        /* The normalised value grows, so the difference is the elapsed clocks.
-         * If it shrank instead, the counter wrapped in between: add the rest
-         * of the period plus the new value. */
+        /* 转换后的值是递增的，差值就是经过的时钟数；如果反而变小了，说明中间
+         * 计数器回过一次起点，要补上回到起点之前剩下的部分 */
         uint32_t step = (now > prev) ? (now - prev) : (period - prev + now);
         tcnt += step;
         prev = now;
@@ -413,16 +407,15 @@ static uint8_t SysTickDelay(uint64_t ticks)
 /*********************************************************************
  * @fn      SysTimeToTicks
  *
- * @brief   Convert the time t, given in microseconds, into the number of
- *          SysTick clocks the delay has to wait. The frequency comes from
- *          GetSysClock(), and STCLK = 0 means the time base is HCLK / 8.
- *          The result is rounded up, so the delay is never too short.
+ * @brief   把 t（单位由 unitUs 指定）换算成延时需要等待的 SysTick 时钟数。
+ *          频率取自 GetSysClock()；STCLK = 0 表示时基为 HCLK/8。结果向上取整，
+ *          保证延时不会比要求的短。
  *
- * @param   t       - time value
- * @param   unitUs  - how many microseconds one unit of t stands for:
- *                    1 when t is in us, 1000 when t is in ms
+ * @param   t       - 时间数值
+ * @param   unitUs  - t 的一个单位等于多少微秒：t 是 us 时填 1，是 ms 时填
+ *                   1000
  *
- * @return  number of SysTick clocks
+ * @return  SysTick 时钟数
  */
 __HIGH_CODE
 static uint64_t SysTimeToTicks(uint16_t t, uint32_t unitUs)
@@ -432,13 +425,13 @@ static uint64_t SysTimeToTicks(uint16_t t, uint32_t unitUs)
 
     if((SysTick->CTLR & SysTick_CTLR_STCLK) == 0)
     {
-        sys_clock >>= 3; /* STCLK = 0: time base is HCLK / 8 */
+        sys_clock >>= 3; /* STCLK = 0：时基为 HCLK/8 */
     }
 
-    /* round up, so the delay is never shorter than asked */
+    /* 向上取整，保证延时不会比要求的短 */
     ticks = ((((uint64_t)sys_clock * t) * unitUs) + (1000000 - 1)) / 1000000;
 
-    return ticks ? ticks : 1; /* 0 means 1 tick at least */
+    return ticks ? ticks : 1; /* 至少延时 1 个时钟 */
 }
 
 /*********************************************************************
@@ -506,11 +499,9 @@ static void loopDelayus(uint16_t t)
 /*********************************************************************
  * @fn      mDelayuS
  *
- * @brief   uS delay. Uses the SysTick counter when it is running 
- *          (read-only, so a user's SysTick interrupt is not disturbed),
- *          otherwise the original software loop.
+ * @brief   uS 延时
  *
- * @param   t       - time parameter
+ * @param   t       - 时间参数
  *
  * @return  none
  */
