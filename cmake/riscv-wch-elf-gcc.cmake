@@ -1,6 +1,5 @@
 # ch570q.toolchain.cmake
 
-# 1. 告诉 CMake 目标是裸机，不是 Linux/Windows
 set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_SYSTEM_PROCESSOR riscv32)
 
@@ -22,11 +21,6 @@ set(CMAKE_OBJDUMP                   ${TOOLCHAIN_PREFIX}objdump)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
 # ---- 公共架构选项（C/C++/ASM 通用）----
-# 注意：这里必须使用“空格分隔的字符串”，不能写成 CMake 列表（即多个参数）。
-# 如果把每个 flag 写成列表元素，插值到 CMAKE_<LANG>_FLAGS_INIT 后会变成分号
-# 分隔（-march=...;-mabi=...），Windows 下 Ninja 会把整串当作一个参数传给 gcc，
-# 于是 -march= 会把后面的 flag 全部吃掉，-nostartfiles/--specs=*/-ffunction-sections
-# 等都不生效，最终导致链接时 crt0.o 与 startup_CH572.S 的 _start 重复定义。
 set(ARCH_FLAGS
     "-march=rv32imc_zba_zbb_zbc_zbs_xw -mabi=ilp32 -mcmodel=medany -msmall-data-limit=8 -mno-save-restore"
 )

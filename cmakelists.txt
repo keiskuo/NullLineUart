@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 4.2)
+
 # 自动获取项目根目录文件夹名作为 PROJECT_NAME
 get_filename_component(PROJECT_DIR_NAME "${CMAKE_SOURCE_DIR}" NAME)
 
@@ -6,7 +7,6 @@ project(${PROJECT_DIR_NAME} C CXX ASM)
 
 add_subdirectory(StdPeriphDriver)
 
-# ---- 源文件（必须包含启动文件）----
 add_executable(${PROJECT_NAME})
 
 target_sources(${PROJECT_NAME} 
@@ -14,12 +14,13 @@ PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Main.c
     ${CMAKE_CURRENT_SOURCE_DIR}/startup_CH572.S
 )
+# ---- 工程代码额外编译选项(对库代码不生效) ----
 target_compile_options(${PROJECT_NAME} PRIVATE
     -Wall 
     -Wextra
 )
 
-# ---- C / C++ 标准 ----
+# ---- C / C++ 标准 与MRS中CH57x的配置保持一致----
 set_target_properties(${PROJECT_NAME} 
 PROPERTIES
     C_STANDARD 99
@@ -37,13 +38,13 @@ PRIVATE
     -Wl,-Map,${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.map
 )
 
-# ---- 如果有需要链接的库（从 Makefile 的 LDLIBS 中提取）----
+# ---- 链接的库 ----
 target_link_libraries(${PROJECT_NAME} PRIVATE
     ch57xstdlib
     ${CMAKE_CURRENT_SOURCE_DIR}/StdPeriphDriver/src/libISP572.a
 )
 
-# ---- 产物后缀：采用 WCH 习惯的 .elf（下面的 $<TARGET_FILE:...> 会自动跟着变）----
+# ---- 产物后缀 ----
 set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".elf")
 
 set(HEX_FILE ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.hex)
