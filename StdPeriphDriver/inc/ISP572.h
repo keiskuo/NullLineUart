@@ -1,4 +1,4 @@
-﻿/* CH572 Flash-ROM & Data-Flash  */
+/* CH572 Flash-ROM & Data-Flash  */
 /* Website:  http://wch.cn       */
 /* Email:    tech@wch.cn         */
 /* Author:   W.ch 2024.12        */

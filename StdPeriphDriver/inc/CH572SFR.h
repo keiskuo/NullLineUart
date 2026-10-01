@@ -1,4 +1,4 @@
-﻿/* Define for CH572         */
+/* Define for CH572         */
 /* Website:  http://wch.cn  */
 /* Email:    tech@wch.cn    */
 /* Author:   RDL14 2024.11.22   */
