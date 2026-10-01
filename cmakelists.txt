@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 4.2)
-project(ch57xTemplate C CXX ASM)
+# 自动获取项目根目录文件夹名作为 PROJECT_NAME
+get_filename_component(PROJECT_DIR_NAME "${CMAKE_SOURCE_DIR}" NAME)
+
+project(${PROJECT_DIR_NAME} C CXX ASM)
 
 add_subdirectory(StdPeriphDriver)
 
