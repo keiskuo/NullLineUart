@@ -35,10 +35,31 @@ void led_init(void)
  * @brief     以指定时间间隔切换LED状态
  *
  ******************************************************************************/
-void led_toggle(uint16_t interval)
+void led_toggle(void)
+{
+   GPIOA_InverseBits(LED_PIN);
+}
+
+/*******************************************************************************
+ * @author    keiskuo (ke.l@foxmail.com)
+ * @date      2026-10-03
+ * 
+ * @brief     led_on函数用于点亮LED灯
+ * 
+ ******************************************************************************/
+void led_on(void)
 {
     GPIOA_SetBits(LED_PIN);
-    DelayMs(interval);
+}
+
+/*******************************************************************************
+ * @author    keiskuo (ke.l@foxmail.com)
+ * @date      2026-10-03
+ * 
+ * @brief     led_off函数用于关闭LED灯
+ * 
+ ******************************************************************************/
+void led_off(void)
+{
     GPIOA_ResetBits(LED_PIN);
-    DelayMs(interval);
 }

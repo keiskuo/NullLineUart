@@ -21,6 +21,10 @@ target_compile_options(${PROJECT_NAME} PRIVATE
     -Wextra
 )
 
+target_compile_definitions(ch57xstdlib PRIVATE
+    $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:DEBUG=1>
+)
+
 # ---- C / C++ 标准 与MRS中CH57x的配置保持一致----
 set_target_properties(${PROJECT_NAME} 
 PROPERTIES
@@ -44,6 +48,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     ch57xstdlib
     nluartlib
     ${CMAKE_CURRENT_SOURCE_DIR}/StdPeriphDriver/src/libISP572.a
+    ${CMAKE_CURRENT_SOURCE_DIR}/StdPeriphDriver/src/libCH57xRF.a
 )
 
 # ---- 产物后缀 ----
