@@ -3,6 +3,7 @@ add_library(nluartlib STATIC)
 target_sources(nluartlib
 PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/led.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/uart.c
 )
 target_include_directories(nluartlib 
 PUBLIC

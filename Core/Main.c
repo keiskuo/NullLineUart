@@ -11,6 +11,7 @@
 
 #include "CH57x_common.h"
 #include "led.h"
+#include "uart.h"
 /*******************************************************************************
  * @author    keiskuo (ke.l@foxmail.com)
  * @date      2026-09-29
@@ -28,9 +29,11 @@ int main()
     /* SysTick 作为延时基准：1mS 计数周期，只启动计数器、不使能Systick中断 */
     __SysTick_Config(FREQ_SYS / 1000);
     led_init();
+    uart0_init();
 
     while(1)
     {
-        led_toggle(300);
+        led_toggle(100);
+        UART_SendString((uint8_t *)"Hello, CH57x!\r\n", 16);
     }
 }
