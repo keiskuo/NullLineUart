@@ -10,7 +10,7 @@
  ******************************************************************************/
 
 #include "CH57x_common.h"
-
+#include "led.h"
 /*******************************************************************************
  * @author    keiskuo (ke.l@foxmail.com)
  * @date      2026-09-29
@@ -27,14 +27,10 @@ int main()
     SetSysClock(CLK_SOURCE_HSE_PLL_100MHz);
     /* SysTick 作为延时基准：1mS 计数周期，只启动计数器、不使能Systick中断 */
     __SysTick_Config(FREQ_SYS / 1000);
-    GPIOA_SetBits(bTXD_4);
-    GPIOA_ModeCfg(bTXD_4, GPIO_ModeOut_PP_5mA);
+    led_init();
 
     while(1)
     {
-        GPIOA_SetBits(bTXD_4);
-        DelayMs(500);
-        GPIOA_ResetBits(bTXD_4);
-        DelayMs(500);
+        led_toggle(300);
     }
 }

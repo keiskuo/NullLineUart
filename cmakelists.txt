@@ -6,6 +6,7 @@ get_filename_component(PROJECT_DIR_NAME "${CMAKE_SOURCE_DIR}" NAME)
 project(${PROJECT_DIR_NAME} C CXX ASM)
 
 add_subdirectory(StdPeriphDriver)
+add_subdirectory(Bsp)
 
 add_executable(${PROJECT_NAME})
 
@@ -41,6 +42,7 @@ PRIVATE
 # ---- 链接的库 ----
 target_link_libraries(${PROJECT_NAME} PRIVATE
     ch57xstdlib
+    nluartlib
     ${CMAKE_CURRENT_SOURCE_DIR}/StdPeriphDriver/src/libISP572.a
 )
 

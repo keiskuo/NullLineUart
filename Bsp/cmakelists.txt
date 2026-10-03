@@ -1,0 +1,12 @@
+add_library(nluartlib STATIC)
+
+target_sources(nluartlib
+PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/led.c
+)
+target_include_directories(nluartlib 
+PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/inc
+)
+
+target_link_libraries(nluartlib PUBLIC ch57xstdlib)
