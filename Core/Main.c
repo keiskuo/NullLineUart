@@ -16,23 +16,22 @@
 #include "uart.h"
 #include "usb_uart.h"
 
-/**
+/*******************************************************************************
+ * @author    keiskuo (ke.l@foxmail.com)
+ * @date      2026-10-05
+ * 
  * @brief     主函数
- *
- * @note  数据通路：
- *        PC --USB EP2 OUT--> 射频 --2.4G--> 对端
- *        对端 --2.4G--> 射频 --USB EP2 IN--> PC
- *        USB_StatusQuery() 负责处理枚举、控制传输及射频数据上传
- */
+ * 
+ ******************************************************************************/
 __HIGH_CODE
 int main()
 {
     HSECFG_Capacitance(HSECap_12p);
     SetSysClock(CLK_SOURCE_HSE_PLL_100MHz);
-    __SysTick_Config(FREQ_SYS / 1000); /* mDelaymS 延时基准，勿删 */
+    SysTick_Config(FREQ_SYS / 1000); /* mDelaymS 延时基准 */
 
-    led_init();   /* PA7，rf_uart_rx.c 用它指示绑定状态 */
-    uart0_init(); /* PA3/UART0，PRINT 调试输出 */
+    led_init();   /* PA7 */
+    uart0_init(); /* PA3 UART0，PRINT 调试输出 */
 
     /* USB 设备：PA0=D-/PA1=D+，需先开模拟 I/O 并关调试口 */
     R16_PIN_ALTERNATE &= ~RB_PIN_DEBUG_EN;
@@ -45,5 +44,6 @@ int main()
     while(1)
     {
         USB_StatusQuery();
+        RF_LedUpdate();
     }
 }

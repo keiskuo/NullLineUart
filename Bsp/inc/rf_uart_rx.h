@@ -24,9 +24,9 @@ extern "C"
 #define  CONN_TIMEOUT      100
 #define  CONN_PHY_TYPE     1   // 2M
 
-void RF_UartRxInit( void );
-uint8_t RF_RxQuery( void *buf, typeBufSize *len );
-
+void    RF_UartRxInit(void);
+uint8_t RF_RxQuery(void* buf, typeBufSize* len);
+void    RF_LedUpdate(void);
 
 #ifdef __cplusplus
 }

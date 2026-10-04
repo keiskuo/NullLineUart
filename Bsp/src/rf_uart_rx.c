@@ -17,7 +17,6 @@
 #include "led.h"
 
 uint8_t volatile RF_bound_Flag;
-uint32_t ledcount = 0;
 
 /*********************************************************************
  * GLOBAL TYPEDEFS
@@ -29,11 +28,13 @@ uint32_t gBaudRate;
 
 rfTxBuf_t gTxBuf;
 uint32_t gSysClock;
-uint32_t gRfTxCount;
 uint32_t gIntervalTimer;
 uint16_t gServerData; // 需要掉电保存，需保存至flash
 uint16_t gTimeoutMax;
 uint16_t gTimeout;
+
+static volatile uint8_t  gRfTxActivityPending;
+static volatile uint32_t gRfDataEventTimeMs;
 
 uint8_t gDataSeq;
 uint8_t gRfStatus;
@@ -44,6 +45,13 @@ static void rfProcessRx( rfPackage_t *pPkt );
 static void rfProcessTx( void );
 static void rfProcessCrcError( void );
 static  void rfProcessTimeout( void );
+
+__HIGH_CODE
+static void rf_record_data_event(void)
+{
+    gRfDataEventTimeMs = SysRunTime_ms;
+}
+
 // GAP Service Callbacks
 rfStatusCBs_t rfCBs =
 {
@@ -139,19 +147,20 @@ static void rf_disconnect( void )
  *
  * @return  None.
  */
-static void rf_bound( bound_rsp_t *rsp )
+static void rf_bound(bound_rsp_t* rsp)
 {
-    gTimeout = 0;
-    gBoundStatus = BOUND_STATUS_WAIT;
-    rf_tx_set_sync_word( rsp->accessaddr );
-    rf_tx_set_frequency( rsp->channel );
-    rf_tx_set_phy_type( rsp->phy );
+    gTimeout           = 0;
+    gBoundStatus       = BOUND_STATUS_WAIT;
+    gRfDataEventTimeMs = SysRunTime_ms - 20U;
+    rf_tx_set_sync_word(rsp->accessaddr);
+    rf_tx_set_frequency(rsp->channel);
+    rf_tx_set_phy_type(rsp->phy);
 
-    rf_rx_set_sync_word( rsp->accessaddr );
-    rf_rx_set_frequency( rsp->channel );
-    rf_rx_set_phy_type( rsp->phy );
+    rf_rx_set_sync_word(rsp->accessaddr);
+    rf_rx_set_frequency(rsp->channel);
+    rf_rx_set_phy_type(rsp->phy);
     RF_bound_Flag = 1;
-    PRINT("bound success.%X %x\n",rsp->accessaddr,rsp->channel );
+    PRINT("bound success.%X %x\n", rsp->accessaddr, rsp->channel);
 }
 
 /*******************************************************************************
@@ -166,7 +175,8 @@ static void rf_bound( bound_rsp_t *rsp )
 __HIGH_CODE
 static void rfProcessRx( rfPackage_t *pPkt )
 {
-    rfPackage_t *pPkt_t = (rfPackage_t *)gTxBuf.TxBuf;
+    rfPackage_t* pPkt_t  = (rfPackage_t*)gTxBuf.TxBuf;
+    gRfTxActivityPending = 0;
 
     if( gBoundStatus == BOUND_STATUS_IDLE )
     {
@@ -257,11 +267,11 @@ static void rfProcessRx( rfPackage_t *pPkt )
                     s = USB_RxQuery( pRsp_t->other.rspData, &len );
                     if( s == 0 )
                     {
-                        pPkt_t->length = PKT_DATA_OFFSET+1+len;
-                        pRsp_t->opcode = OPCODE_DATA;
-                        pPkt_t->seq = gDataSeq;
-                        pPkt_t->resv = 0;
-                        gRfTxCount += len;
+                        pPkt_t->length       = PKT_DATA_OFFSET + 1 + len;
+                        pRsp_t->opcode       = OPCODE_DATA;
+                        pPkt_t->seq          = gDataSeq;
+                        pPkt_t->resv         = 0;
+                        gRfTxActivityPending = 1;
                     }
                     else if( s == 0x80 )
                     {
@@ -298,6 +308,7 @@ static void rfProcessRx( rfPackage_t *pPkt )
             gRfStatus = RF_STATUS_TX;
             if( pPkt->seq == gDataSeq )
             {
+                rf_record_data_event();
                 typeBufSize len = pPkt->length;
                 len -= PKT_DATA_OFFSET;
                 write_buf( pRfBuf, (pPkt+1), &len );
@@ -308,11 +319,11 @@ static void rfProcessRx( rfPackage_t *pPkt )
                 
                 if( gBoundStatus == BOUND_STATUS_EST && !USB_RxQuery( pRsp_t->other.rspData, &len ) )
                 {
-                    pPkt_t->length = PKT_DATA_OFFSET+1+len;
-                    pRsp_t->opcode = OPCODE_DATA;
-                    pPkt_t->seq = gDataSeq;
-                    pPkt_t->resv = 0;
-                    gRfTxCount += len;
+                    pPkt_t->length       = PKT_DATA_OFFSET + 1 + len;
+                    pRsp_t->opcode       = OPCODE_DATA;
+                    pPkt_t->seq          = gDataSeq;
+                    pPkt_t->resv         = 0;
+                    gRfTxActivityPending = 1;
                 }
                 else
                 {
@@ -352,7 +363,6 @@ static void rfProcessRx( rfPackage_t *pPkt )
        }
        gTimeout = 0;
     }
-    
 }
 
 /*******************************************************************************
@@ -365,14 +375,19 @@ static void rfProcessRx( rfPackage_t *pPkt )
  * @return  None.
  */
 __HIGH_CODE
-static void rfProcessTx( void )
+static void rfProcessTx(void)
 {
-    if( gRfStatus == RF_STATUS_TXRSP )
+    if(gRfTxActivityPending)
     {
-         rf_bound( (bound_rsp_t *)&gTxBuf.TxBuf[PKT_HEAD_LEN] );
+        rf_record_data_event();
+        gRfTxActivityPending = 0;
+    }
+    if(gRfStatus == RF_STATUS_TXRSP)
+    {
+        rf_bound((bound_rsp_t*)&gTxBuf.TxBuf[PKT_HEAD_LEN]);
     }
     gRfStatus = RF_STATUS_RX;
-    rf_rx_start( gIntervalTimer );
+    rf_rx_start(gIntervalTimer);
 }
 
 /*******************************************************************************
@@ -385,7 +400,7 @@ static void rfProcessTx( void )
  * @return  None.
  */
 __HIGH_CODE
-static void rfProcessCrcError( void )
+static void rfProcessCrcError(void)
 {
     gRfStatus = RF_STATUS_WAIT;
 }
@@ -400,10 +415,10 @@ static void rfProcessCrcError( void )
  * @return  None.
  */
 __HIGH_CODE
-static void rfProcessTimeout( void )
+static void rfProcessTimeout(void)
 {
-    // PRINT("r -timeout %x\n",gRfStatus);
-    if( gBoundStatus && ++gTimeout > gTimeoutMax )
+    gRfTxActivityPending = 0;
+    if(gBoundStatus && ++gTimeout > gTimeoutMax)
     {
         gRxDataStatus = DATA_STATUS_TIMEOUT;
         PRINT("connect timeout.\n");
@@ -422,49 +437,57 @@ static void rfProcessTimeout( void )
  * @return  None.
  */
 __HIGH_CODE
-uint8_t RF_RxQuery( void *buf, typeBufSize *len )
+void RF_LedUpdate(void)
 {
+    uint32_t now = SysRunTime_ms;
 
-    //获取bound标志
-    if(RF_bound_Flag)
+    if(!RF_bound_Flag)
     {
-        ledcount++;
-        if(ledcount >=80000)
+        if((now % 200U) < 100U)
         {
             led_on();
-            ledcount = 0;
         }
+        else
+        {
+            led_off();
+        }
+        return;
+    }
+
+    if((uint32_t)(now - gRfDataEventTimeMs) < 20U)
+    {
+        led_on();
     }
     else
     {
         led_off();
     }
+}
 
-    uint8_t *p;
-
-    if( gRxDataStatus == DATA_STATUS_RCV )
+__HIGH_CODE
+uint8_t RF_RxQuery(void* buf, typeBufSize* len)
+{
+    if(gRxDataStatus == DATA_STATUS_RCV)
     {
-        if( read_buf( pRfBuf, buf, len ) == 0 )
+        if(read_buf(pRfBuf, buf, len) == 0)
         {
-
-            led_toggle();
             PFIC_DisableIRQ(BLEL_IRQn);
             gRxDataStatus = DATA_STATUS_START;
             PFIC_EnableIRQ(BLEL_IRQn);
         }
     }
-    else if( gRxDataStatus == DATA_STATUS_TIMEOUT )
+    else if(gRxDataStatus == DATA_STATUS_TIMEOUT)
     {
         *len = 0;
-        rf_disconnect( );
+        rf_disconnect();
     }
     else
     {
         *len = 0;
-        if( gRfStatus == RF_STATUS_WAIT )
+        if(gRfStatus == RF_STATUS_WAIT)
         {
             gRfStatus = RF_STATUS_RX;
-            rf_rx_start( gIntervalTimer );
+            rf_rx_start(gIntervalTimer);
         }
     }
     return *len;

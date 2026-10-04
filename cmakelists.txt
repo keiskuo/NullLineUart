@@ -21,7 +21,7 @@ target_compile_options(${PROJECT_NAME} PRIVATE
     -Wextra
 )
 
-target_compile_definitions(ch57xstdlib PRIVATE
+target_compile_definitions(${PROJECT_DIR_NAME} PRIVATE
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:DEBUG=1>
 )
 

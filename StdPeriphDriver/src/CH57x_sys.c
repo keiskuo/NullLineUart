@@ -12,6 +12,8 @@
 
 #include "CH57x_common.h"
 
+uint32_t SysRunTime_ms = 0; /* 系统运行时间，单位：ms */
+
 /*********************************************************************
  * @fn      SetSysClock
  *
@@ -714,3 +716,8 @@ void IWDG_Feed(void)
     IWDG_KR_Set(KEY_RELOADING_COUNT);
 }
 
+__INTERRUPT __HIGH_CODE void SysTick_Handler(void)
+{
+    ++SysRunTime_ms;
+    SysTick->SR = 0;   /* 清 CNTIF */
+}

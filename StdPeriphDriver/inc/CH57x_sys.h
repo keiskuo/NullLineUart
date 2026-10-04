@@ -255,12 +255,13 @@ uint8_t IWDG_Enable(IWDG_32K_PR pr, uint16_t rlr);
  */
 void IWDG_Feed(void);
 
+extern uint32_t SysRunTime_ms;
 /**
  * @brief Enter safe access mode.
- * 
- * @NOTE: After enter safe access mode, about 16 system frequency cycles 
- * are in safe mode, and one or more secure registers can be rewritten 
- * within the valid period. The safe mode will be automatically 
+ *
+ * @NOTE: After enter safe access mode, about 16 system frequency cycles
+ * are in safe mode, and one or more secure registers can be rewritten
+ * within the valid period. The safe mode will be automatically
  * terminated after the above validity period is exceeded.
  *  if sys_safe_access_enable() is called,
  *  you must call sys_safe_access_disable() before call sys_safe_access_enable() again.
