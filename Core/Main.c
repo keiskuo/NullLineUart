@@ -19,25 +19,22 @@
 /*******************************************************************************
  * @author    keiskuo (ke.l@foxmail.com)
  * @date      2026-10-05
- * 
+ *
  * @brief     主函数
- * 
+ *
  ******************************************************************************/
 __HIGH_CODE
 int main()
 {
+    // 关闭仿真调试接口
+    R16_PIN_ALTERNATE &= ~RB_PIN_DEBUG_EN;
     HSECFG_Capacitance(HSECap_12p);
     SetSysClock(CLK_SOURCE_HSE_PLL_100MHz);
     SysTick_Config(FREQ_SYS / 1000); /* mDelaymS 延时基准 */
 
     led_init();   /* PA7 */
     uart0_init(); /* PA3 UART0，PRINT 调试输出 */
-
-    /* USB 设备：PA0=D-/PA1=D+，需先开模拟 I/O 并关调试口 */
-    R16_PIN_ALTERNATE &= ~RB_PIN_DEBUG_EN;
-    R16_PIN_ALTERNATE |= RB_PIN_USB_EN;
     USB_Init();
-
     RFRole_Init();   /* 射频硬件 + 使能 BLEB(基带)/BLEL(链路层) 中断 */
     RF_UartRxInit(); /* 协议状态机 + 注册收发回调 */
 

@@ -1971,8 +1971,6 @@ uint8_t USB_RxQuery( void *buf, typeBufSize *len )
  */
 void USB_Init( void )
 {
-    // 关闭仿真调试接口
-    R16_PIN_ALTERNATE &= ~RB_PIN_DEBUG_EN;
     InitUSBDevPara();
     InitUSBDevice();
     PFIC_EnableIRQ( USB_IRQn );
