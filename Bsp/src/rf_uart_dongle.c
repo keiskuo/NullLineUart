@@ -12,7 +12,7 @@
 /******************************************************************************/
 /* 头文件包含 */
 #include "rf.h"
-#include "rf_uart_rx.h"
+#include "rf_uart_dongle.h"
 #include "usb_uart.h"
 #include "led.h"
 
@@ -430,7 +430,7 @@ static void rfProcessTimeout(void)
 }
 
 /*******************************************************************************
- * @fn      RF_RxQuery
+ * @fn      RF_DongleRxQuery
  *
  * @brief
  *
@@ -465,7 +465,7 @@ void RF_LedUpdate(void)
 }
 
 __HIGH_CODE
-uint8_t RF_RxQuery(void* buf, typeBufSize* len)
+uint8_t RF_DongleRxQuery(void* buf, typeBufSize* len)
 {
     if(gRxDataStatus == DATA_STATUS_RCV)
     {
@@ -503,7 +503,7 @@ uint8_t RF_RxQuery(void* buf, typeBufSize* len)
  * @return  None.
  */
 __HIGH_CODE
-void RF_UartRxInit( void )
+void RF_UartDongleInit( void )
 {
     PRINT("----------------- rf uart rx mode -----------------\n");
     gRxDataStatus = DATA_STATUS_IDLE;

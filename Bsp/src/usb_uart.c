@@ -12,7 +12,7 @@
 
 #include "CH57x_common.h"
 #include "usb_uart.h"
-#include "rf_uart_rx.h"
+#include "rf_uart_dongle.h"
 #include "rf.h"
 #include "buf.h"
 
@@ -1913,7 +1913,7 @@ void USB_StatusQuery( void )
         if( (R8_UEP2_CTRL&MASK_UEP_T_RES) == UEP_T_RES_NAK )
         {
             len  = MAX_PACKET_SIZE/2;
-            if( RF_RxQuery( &Ep2Buffer[64], &len ) )
+            if( RF_DongleRxQuery( &Ep2Buffer[64], &len ) )
             {
                 if( len > 32 )
                 {

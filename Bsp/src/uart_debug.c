@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file      uart.c
+ * @file      uart_debug.c
  * @author    keiskuo (ke.l@foxmail.com)
  * @version   1.0.0
  * @date      2026-10-03
@@ -13,9 +13,9 @@
 #define UART_RX_PIN bRXD_0
 
 #include "CH57x_common.h"
-#include "uart.h"
+#include "uart_debug.h"
 
-void uart0_init(void)
+void uart_debug_init(void)
 {
     GPIOA_ModeCfg(UART_TX_PIN, GPIO_ModeOut_PP_5mA);
     GPIOA_ModeCfg(UART_RX_PIN, GPIO_ModeIN_PU);

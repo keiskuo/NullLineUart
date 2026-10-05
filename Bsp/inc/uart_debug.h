@@ -10,4 +10,4 @@
  ******************************************************************************/
 #pragma once
 
-void uart0_init(void);
+void uart_debug_init(void);

@@ -3,11 +3,11 @@ add_library(nluartlib STATIC)
 target_sources(nluartlib
 PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/led.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/uart.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/uart_debug.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/buf.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_uart.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/rf.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/rf_uart_rx.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/rf_uart_dongle.c
 )
 
 target_include_directories(nluartlib 
