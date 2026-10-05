@@ -127,7 +127,7 @@ const uint8_t USB_DEV_PARA_CDC_SERIAL_STR[]=     "WCH121212TS1";
 const uint8_t USB_DEV_PARA_CDC_PRODUCT_STR[]=    "USB2.0 To Serial Port";
 const uint8_t USB_DEV_PARA_CDC_MANUFACTURE_STR[]= "wch.cn";
 
-const uint8_t USB_DEV_PARA_VEN_SERIAL_STR[]=     "WCH454545TS2";
+static uint8_t USB_DEV_PARA_VEN_SERIAL_STR[13];
 const uint8_t USB_DEV_PARA_VEN_PRODUCT_STR[]=   "USB2.0 To Serial Port";
 const uint8_t USB_DEV_PARA_VEN_MANUFACTURE_STR[]= "wch.cn";
 
@@ -285,6 +285,28 @@ static uint8_t usb_buf[USB_BUF_LEN];
 static void usb_buffer_create(struct simple_buf **buf)
 {
     *buf = simple_buf_create(&usb_buffer, usb_buf, sizeof(usb_buf) );
+}
+
+/*******************************************************************************
+ * @author    keiskuo (ke.l@foxmail.com)
+ * @date      2026-10-05
+ * 
+ * @brief     根据芯片唯一ID生成USB设备序列号
+ * 
+ ******************************************************************************/
+static void usb_get_dev_unique_sn(void)
+{
+    static const uint8_t hex_digits[]       = "0123456789ABCDEF";
+    uint32_t             unique_id_words[2] = {0};
+    uint8_t*             unique_id          = (uint8_t*)unique_id_words;
+
+    GET_UNIQUE_ID(unique_id);
+    for(uint8_t index = 0; index < 6; ++index)
+    {
+        USB_DEV_PARA_VEN_SERIAL_STR[index * 2]     = hex_digits[unique_id[index] >> 4];
+        USB_DEV_PARA_VEN_SERIAL_STR[index * 2 + 1] = hex_digits[unique_id[index] & 0x0F];
+    }
+    USB_DEV_PARA_VEN_SERIAL_STR[12] = '\0';
 }
 
 /*******************************************************************************
@@ -1971,10 +1993,9 @@ uint8_t USB_RxQuery( void *buf, typeBufSize *len )
  */
 void USB_Init( void )
 {
+    usb_get_dev_unique_sn();
     InitUSBDevPara();
     InitUSBDevice();
     PFIC_EnableIRQ( USB_IRQn );
     usb_buffer_create(&pUsbBuf);
 }
-
-
