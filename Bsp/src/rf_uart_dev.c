@@ -53,7 +53,38 @@ static struct simple_buf rf_buffer;
 struct simple_buf*       pRfBuf = NULL;
 
 uint8_t volatile RF_bound_Flag;
-uint32_t ledcount = 0;
+static volatile uint32_t gRfDataEventTimeMs;
+
+__HIGH_CODE
+static void rf_record_data_event(void)
+{
+    gRfDataEventTimeMs = SysRunTime_ms;
+}
+
+static void rf_led_update(void)
+{
+    uint32_t now = SysRunTime_ms;
+
+    if(!RF_bound_Flag)
+    {
+        if((now % 200U) < 100U)
+        {
+            led_on();
+        }
+        else
+        {
+            led_off();
+        }
+    }
+    else if((uint32_t)(now - gRfDataEventTimeMs) < 20U)
+    {
+        led_on();
+    }
+    else
+    {
+        led_off();
+    }
+}
 
 /*********************************************************************
  * @fn      uart_buffer_create
@@ -110,6 +141,7 @@ static void rf_bound(bound_rsp_t* rsp)
 
     gTimeout     = 0;
     gBoundStatus = BOUND_STATUS_WAIT;
+    gRfDataEventTimeMs = SysRunTime_ms - 20U;
     gInterval    = rsp->interval;
     gTimeoutMax  = (rsp->timeout * 10 / rsp->interval);
     gServerData  = rsp->severData;
@@ -145,6 +177,7 @@ static void rfProcessRx(rfPackage_t* pPkt)
         if(pPkt->type == PKT_DATA_RSP_ACK)
         {
             // 数据发送成功
+            rf_record_data_event();
             if(pPkt->length > PKT_DATA_OFFSET + 1)
             {
                 typeBufSize len;
@@ -193,6 +226,7 @@ static void rfProcessRx(rfPackage_t* pPkt)
                 {
                     SetSysClock(CLK_SOURCE_HSE_PLL_24MHz);
                 }
+                    SysTick_Config(GetSysClock() / 1000);
                 mDelaymS(10);
 
                 UART_SetBuad(pRsp_t->buad_t.BaudRate);
@@ -280,7 +314,7 @@ static void rfProcessRx(rfPackage_t* pPkt)
                         PFIC_SetPendingIRQ(UART_IRQn);
                     }
                 }
-                led_toggle();
+                rf_record_data_event();
             }
         }
         else
@@ -367,20 +401,7 @@ void RF_DevStatusQuery(void)
 {
     uint8_t s;
 
-    // 获取bound标志
-    if(RF_bound_Flag)
-    {
-        ledcount++;
-        if(ledcount >= 50000)
-        {
-            led_on();
-            ledcount = 0;
-        }
-    }
-    else
-    {
-        led_off();
-    }
+    rf_led_update();
     if(gTxBuf.status == STA_IDLE)
     {
         rfPackage_t* pPkt_t = (rfPackage_t*)gTxBuf.TxBuf;
@@ -390,7 +411,6 @@ void RF_DevStatusQuery(void)
         // 发送数据
         if(s == 0)
         {
-            led_toggle();
             gRfStatus      = RF_STATUS_TX;
             pPkt_t->type   = PKT_DATA_FLAG;
             pPkt_t->length = gTxBuf.len + PKT_DATA_OFFSET;

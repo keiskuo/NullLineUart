@@ -24,12 +24,15 @@ __attribute__((used)) __HIGH_CODE void process_main(void)
 __HIGH_CODE
 int main(void)
 {
+    // 关闭两线调试
+    R16_PIN_ALTERNATE &= ~RB_PIN_DEBUG_EN;
     HSECFG_Capacitance(HSECap_12p);
-
     /*上电先跑 24MHz；收到 OPCODE_BSP 后按对端波特率在
       rf_uart_dev.c: rfProcessRx() 内切 24M / 100M */
     SetSysClock(CLK_SOURCE_HSE_PLL_24MHz);
-    UART_Init();
+    SysTick_Config(GetSysClock() / 1000); /* 为 LED 活动脉冲和 mDelaymS 提供毫秒时基 */
+    led_init();
+    uart_bridge_init();
     PRINT("start.\n");
     PRINT("%s\n", VER_RF_LIB);
     RFRole_Init();    /* 射频硬件 + 使能 BLEB/BLEL 中断 */

@@ -53,7 +53,7 @@ enum uart_status {
 
 extern uint8_t gBoundStatus;
 
-void    UART_Init(void);
+void    uart_bridge_init(void);
 uint8_t UART_RxQuery(void* buf, typeBufSize* len);
 void    UART_SetBuad(uint32_t buad);
 void    UART_SetTimer(uint16_t ms);

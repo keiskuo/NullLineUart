@@ -273,19 +273,17 @@ int uart_start_receiving(void)
 }
 
 /*********************************************************************
- * @fn      uart_task_init
+ * @fn      uart_bridge_init
  *
- * @brief   Serial port initialization and task initialization.
+ * @brief   Serial port initialization
  *
  * @param   none
  *
  * @return  none
  */
-void UART_Init(void)
+void uart_bridge_init(void)
 {
     gSysClock = GetSysClock();
-    led_init();
-
 // 设置DTR、RTS脚与ST――RESET、BOOT脚
 #if ((defined(DTR_RTS_FUNC)) && (DTR_RTS_FUNC == TRUE))
     GPIOA_SetBits((DTR_PIN | RTS_PIN));
@@ -294,9 +292,6 @@ void UART_Init(void)
     GPIOA_SetBits((RESET_PIN | BOOT_PIN));
     GPIOA_ModeCfg((RESET_PIN | BOOT_PIN), GPIO_ModeOut_PP_5mA);
 #endif
-
-    // 关闭两线调试
-    R16_PIN_ALTERNATE &= ~RB_PIN_DEBUG_EN;
     // 默认波特率 115200 PA0-TXD PA1-RXD
     GPIOA_SetBits(TXD_PIN);
     GPIOA_ModeCfg(TXD_PIN, GPIO_ModeOut_PP_5mA);
@@ -304,8 +299,6 @@ void UART_Init(void)
     UART_Remap(ENABLE, UART_TX_REMAP_PA0, UART_RX_REMAP_PA1);
 
     UART_DefInit();
-    UART_SetBuad(115200);
-
     UART_ByteTrigCfg(UART_4BYTE_TRIG);
     UART_INTCfg(ENABLE, RB_IER_RECV_RDY | RB_IER_LINE_STAT | RB_IER_THR_EMPTY);
     uart_flag = UART_STATUS_IDLE;
