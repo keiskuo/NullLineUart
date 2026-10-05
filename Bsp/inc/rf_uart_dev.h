@@ -16,7 +16,6 @@
 
 #define ADV_INTERVAL          20
 #define RESEND_COUNT          40
-#define BOUND_INFO_FLASH_ADDR (1024 * 236)
 #define RF_BUF_LEN            512
 
 extern uint32_t           gRfRxFlag;

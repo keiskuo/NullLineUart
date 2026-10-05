@@ -138,7 +138,7 @@ typedef struct
 typedef struct  __attribute__((packed))
 {
     uint16_t interval; // 广播和连接确认期间，发送间隔，单位：ms
-    uint16_t severData; // 回连配置为上次连接的信息，首次连接写0
+    uint8_t deviceId[8]; // 设备唯一标识符
 } bound_req_t;
 
 typedef struct  __attribute__((packed))
@@ -146,8 +146,8 @@ typedef struct  __attribute__((packed))
     uint32_t accessaddr;// 连接通信，接入地址
     uint8_t channel; // 连接通信，通信频率
     uint8_t phy;     // 连接通信，PHY类型
-    uint16_t severData; // 用于识别回连的信息
     uint16_t interval; // 连接通信，空闲时发送获取状态命令的间隔，单位：ms
+    uint8_t dongleId[8]; // Dongle唯一标识符
     uint16_t timeout;  // 连接通信，断开时间，单位：10ms
 } bound_rsp_t;
 
@@ -193,13 +193,14 @@ typedef struct
     pfnRfTimeoutCB_t pfnTimeoutCB;
 } rfStatusCBs_t;
 
-typedef struct
+typedef struct __attribute__((aligned(4)))
 {
-    uint16_t head;
-    uint16_t serverData;
+    uint32_t head; // 数据头
+    uint8_t peerId[8]; // 配对对端的唯一标识符
 } rfBoundInfo_t;
 
-#define  BOUND_INFO_HEAD         0X55AA
+#define  BOUND_INFO_HEAD         0X31444955 // 更新为完整的64位设备UID
+#define  BOUND_INFO_FLASH_ADDR   (1024U * 236U)
 
 
 /* respond opcode define */

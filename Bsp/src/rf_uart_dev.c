@@ -27,7 +27,8 @@ uint32_t  gRfRxCount;
 uint16_t  gInterval;
 uint16_t  gTimeoutMax;
 uint16_t  gTimeout;
-uint16_t  gServerData;
+static uint32_t gDeviceUniqueId[2];
+static uint8_t  gPairedDongleId[8];
 
 uint8_t      gTxDataSeq;
 uint8_t      gRfStatus;
@@ -101,6 +102,30 @@ static void rf_buffer_create(struct simple_buf** buf)
     *buf = simple_buf_create(&rf_buffer, rf_buf, sizeof(rf_buf));
 }
 
+static BOOL rf_uid_valid(const uint8_t* uniqueId)
+{
+    for(uint8_t index = 0; index < 8; index++)
+    {
+        if(uniqueId[index])
+        {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+static BOOL rf_uid_equal(const uint8_t* first, const uint8_t* second)
+{
+    for(uint8_t index = 0; index < 8; index++)
+    {
+        if(first[index] != second[index])
+        {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
 /*******************************************************************************
  * @fn      rf_disconnect
  *
@@ -125,6 +150,17 @@ static void rf_disconnect(void)
     PRINT("disconnect.\n");
 }
 
+static BOOL rf_write_bound_info(const rfBoundInfo_t* info)
+{
+    if(FLASH_ROM_ERASE(BOUND_INFO_FLASH_ADDR, 4096) != 0 ||
+       FLASH_ROM_WRITE(BOUND_INFO_FLASH_ADDR, (void*)info, sizeof(*info)) != 0 ||
+       FLASH_ROM_VERIFY(BOUND_INFO_FLASH_ADDR, (void*)info, sizeof(*info)) != 0)
+    {
+        return FALSE;
+    }
+    return TRUE;
+}
+
 /*******************************************************************************
  * @fn      rf_bound
  *
@@ -134,28 +170,45 @@ static void rf_disconnect(void)
  *
  * @return  None.
  */
-__HIGH_CODE
-static void rf_bound(bound_rsp_t* rsp)
+__attribute__((noinline)) static void rf_bound(bound_rsp_t* rsp)
 {
     rfBoundInfo_t info;
+    uint8_t       hasDongleId = rf_uid_valid(rsp->dongleId);
+
+    if(!hasDongleId || (rf_uid_valid(gPairedDongleId) && !rf_uid_equal(rsp->dongleId, gPairedDongleId)))
+    {
+        PRINT("dongle id mismatch.\n");
+        return;
+    }
+    if(!rf_uid_valid(gPairedDongleId))
+    {
+        info.head = BOUND_INFO_HEAD;
+        for(uint8_t index = 0; index < 8; index++)
+        {
+            info.peerId[index] = rsp->dongleId[index];
+        }
+        if(!rf_write_bound_info(&info))
+        {
+            PRINT("dongle id save failed.\n");
+            return;
+        }
+        for(uint8_t index = 0; index < 8; index++)
+        {
+            gPairedDongleId[index] = rsp->dongleId[index];
+        }
+    }
 
     gTimeout     = 0;
     gBoundStatus = BOUND_STATUS_WAIT;
     gRfDataEventTimeMs = SysRunTime_ms - 20U;
     gInterval    = rsp->interval;
     gTimeoutMax  = (rsp->timeout * 10 / rsp->interval);
-    gServerData  = rsp->severData;
     rf_tx_set_sync_word(rsp->accessaddr);
     rf_tx_set_frequency(rsp->channel);
     rf_tx_set_phy_type(rsp->phy);
     rf_rx_set_sync_word(rsp->accessaddr);
     rf_rx_set_frequency(rsp->channel);
     rf_rx_set_phy_type(rsp->phy);
-    info.head       = 0x55aa;
-    info.serverData = gServerData;
-    FLASH_ROM_ERASE(BOUND_INFO_FLASH_ADDR, 4096);
-    FLASH_ROM_WRITE(BOUND_INFO_FLASH_ADDR, &info, 4);
-
     RF_bound_Flag = 1;
     PRINT("bound success.%x %x\n", rsp->accessaddr, rsp->channel);
 }
@@ -437,7 +490,10 @@ void RF_DevStatusQuery(void)
                 pPkt_t->type      = PKT_CMD_BOUND_REQ;
                 pPkt_t->length    = PKT_DATA_OFFSET + sizeof(bound_req_t);
                 pReq_t->interval  = ADV_INTERVAL;
-                pReq_t->severData = gServerData;
+                for(uint8_t index = 0; index < 8; index++)
+                {
+                    pReq_t->deviceId[index] = ((uint8_t*)gDeviceUniqueId)[index];
+                }
                 gTxDataSeq        = 0;
             }
             gTxBuf.status = STA_BUSY;
@@ -494,7 +550,8 @@ void RF_DevStatusQuery(void)
 __HIGH_CODE
 void RF_UartDevInit(void)
 {
-    rfBoundInfo_t* pInfo;
+    rfBoundInfo_t info;
+
     PRINT("----------------- rf uart tx mode -----------------\n");
     gTxDataSeq    = 0;
     gRfRxFlag     = 0;
@@ -502,16 +559,19 @@ void RF_UartDevInit(void)
     gTxBuf.status = 0;
     rf_buffer_create(&pRfBuf);
 
-    pInfo = (rfBoundInfo_t*)(BOUND_INFO_FLASH_ADDR);
-    if(pInfo->head == BOUND_INFO_HEAD)
+    GET_UNIQUE_ID((uint8_t*)gDeviceUniqueId);
+    for(uint8_t index = 0; index < 8; index++)
     {
-        gServerData = pInfo->serverData;
+        gPairedDongleId[index] = 0;
     }
-    else
+    FLASH_ROM_READ(BOUND_INFO_FLASH_ADDR, &info, sizeof(info));
+    if(info.head == BOUND_INFO_HEAD && rf_uid_valid(info.peerId))
     {
-        gServerData = 0;
+        for(uint8_t index = 0; index < 8; index++)
+        {
+            gPairedDongleId[index] = info.peerId[index];
+        }
     }
-    PRINT("gServerData = %x \n", gServerData);
     RFRole_RegisterStatusCbs(&rfCBs);
 }
 
