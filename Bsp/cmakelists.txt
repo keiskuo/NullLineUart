@@ -1,21 +1,46 @@
+# ============================================================
+# 1) 公共库：dongle / device 两个固件共用，射频与环形缓冲
+# ============================================================
 add_library(nluartlib STATIC)
 
 target_sources(nluartlib
 PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/led.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/uart_debug.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/buf.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_uart.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/rf.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/rf_uart_dongle.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/led.c
 )
 
-target_include_directories(nluartlib 
+target_include_directories(nluartlib
 PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
 )
 target_link_libraries(nluartlib PUBLIC ch57xstdlib)
 
-target_compile_definitions(nluartlib PRIVATE
+# ============================================================
+# 2) Dongle 代码：PC 侧 USB 无线串口适配器
+# ============================================================
+add_library(nluartdongle STATIC)
+
+target_sources(nluartdongle
+PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/uart_debug.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_uart.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/rf_uart_dongle.c
+)
+target_link_libraries(nluartdongle PUBLIC nluartlib)
+
+target_compile_definitions(nluartdongle PRIVATE
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:DEBUG=1>
 )
+
+# ============================================================
+# 3) Device 代码：接真实设备串口(PA0/PA1)+RESET/BOOT(PA2/PA3)的一端
+# ============================================================
+add_library(nluartdevice STATIC)
+
+target_sources(nluartdevice
+PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/uart_bridge.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/rf_uart_dev.c
+)
+target_link_libraries(nluartdevice PUBLIC nluartlib)

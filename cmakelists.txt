@@ -8,66 +8,75 @@ project(${PROJECT_DIR_NAME} C CXX ASM)
 add_subdirectory(StdPeriphDriver)
 add_subdirectory(Bsp)
 
-add_executable(${PROJECT_NAME})
+# ============================================================
+# 通用固件目标规则：Dongle 与 Device 共用
+# ============================================================
+function(add_firmware TARGET_NAME MAIN_SOURCE ROLE_LIB)
+    add_executable(${TARGET_NAME}
+        ${MAIN_SOURCE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/startup_CH572.S
+    )
 
-target_sources(${PROJECT_NAME} 
-PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/Core/Main.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/startup_CH572.S
-)
-# ---- 工程代码额外编译选项(对库代码不生效) ----
-target_compile_options(${PROJECT_NAME} PRIVATE
-    -Wall 
-    -Wextra
-)
+    # ---- 工程代码额外编译选项(对库代码不生效) ----
+    target_compile_options(${TARGET_NAME} PRIVATE -Wall -Wextra)
 
-target_compile_definitions(${PROJECT_DIR_NAME} PRIVATE
+    # ----指定 C / C++ 标准，与MRS2使用相同标准----
+    set_target_properties(${TARGET_NAME}
+        PROPERTIES
+            C_STANDARD 99
+            C_STANDARD_REQUIRED ON
+            C_EXTENSIONS ON          # 对应 -std=gnu99
+            CXX_STANDARD 11
+            CXX_STANDARD_REQUIRED ON
+            CXX_EXTENSIONS ON
+    )
+
+# ---- 链接脚本与库 ----
+    target_link_options(${TARGET_NAME}
+        PRIVATE
+            -T${CMAKE_CURRENT_SOURCE_DIR}/Link.ld
+            -Wl,-Map,${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.map
+    )
+
+    target_link_libraries(${TARGET_NAME}
+        PRIVATE
+            ${ROLE_LIB}
+            nluartlib
+            ch57xstdlib
+            ${CMAKE_CURRENT_SOURCE_DIR}/StdPeriphDriver/src/libISP572.a
+            ${CMAKE_CURRENT_SOURCE_DIR}/StdPeriphDriver/src/libCH57xRF.a
+    )
+    set_target_properties(${TARGET_NAME} PROPERTIES SUFFIX ".elf")
+
+    # ---- 构建后产物 ----
+    set(FW_HEX ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.hex)
+    set(FW_LST ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.lst)
+    set(FW_BIN ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.bin)
+    add_custom_command(TARGET ${TARGET_NAME}
+        POST_BUILD
+        COMMAND ${CMAKE_OBJCOPY} -O ihex   $<TARGET_FILE:${TARGET_NAME}> ${FW_HEX}
+        COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${TARGET_NAME}> ${FW_BIN}
+        COMMAND ${CMAKE_OBJDUMP} --source --all-headers --demangle -M xw
+                                 --line-numbers --wide
+                                 $<TARGET_FILE:${TARGET_NAME}> > ${FW_LST}
+        COMMAND ${CMAKE_SIZE} --format=berkeley $<TARGET_FILE:${TARGET_NAME}>
+        BYPRODUCTS ${FW_HEX} ${FW_LST} ${FW_BIN}
+        COMMENT "Generating ${TARGET_NAME}.hex / .bin / .lst and size report"
+        VERBATIM
+    )
+endfunction()
+
+# ============================================================
+# 固件 1：Dongle —— PC 侧 USB 转 2.4G 无线串口适配器
+# ============================================================
+add_firmware(${PROJECT_NAME}_Dongle ${CMAKE_CURRENT_SOURCE_DIR}/Core/Main_dongle.c nluartdongle)
+
+# Debug/RelWithDebInfo 下开调试打印
+target_compile_definitions(${PROJECT_NAME}_Dongle PRIVATE
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:DEBUG=1>
 )
 
-# ---- C / C++ 标准 与MRS中CH57x的配置保持一致----
-set_target_properties(${PROJECT_NAME} 
-PROPERTIES
-    C_STANDARD 99
-    C_STANDARD_REQUIRED ON
-    C_EXTENSIONS ON          # 对应 -std=gnu99
-    CXX_STANDARD 11
-    CXX_STANDARD_REQUIRED ON
-    CXX_EXTENSIONS ON         # 对应 -std=gnu++11
-)
-
-# ---- 链接脚本与库搜索路径 ----
-target_link_options(${PROJECT_NAME} 
-PRIVATE
-    -T${CMAKE_CURRENT_SOURCE_DIR}/Link.ld
-    -Wl,-Map,${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.map
-)
-
-# ---- 链接的库 ----
-target_link_libraries(${PROJECT_NAME} PRIVATE
-    ch57xstdlib
-    nluartlib
-    ${CMAKE_CURRENT_SOURCE_DIR}/StdPeriphDriver/src/libISP572.a
-    ${CMAKE_CURRENT_SOURCE_DIR}/StdPeriphDriver/src/libCH57xRF.a
-)
-
-# ---- 产物后缀 ----
-set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".elf")
-
-set(HEX_FILE ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.hex)
-set(LST_FILE ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.lst)
-set(BIN_FILE ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.bin)
-
-# ---- 构建后产物：hex / 反汇编清单 / 体积报告 ----
-add_custom_command(TARGET ${PROJECT_NAME}
-    POST_BUILD
-    COMMAND ${CMAKE_OBJCOPY} -O ihex   $<TARGET_FILE:${PROJECT_NAME}> ${HEX_FILE}
-    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${PROJECT_NAME}> ${BIN_FILE}
-    COMMAND ${CMAKE_OBJDUMP} --source --all-headers --demangle -M xw
-                             --line-numbers --wide
-                             $<TARGET_FILE:${PROJECT_NAME}> > ${LST_FILE}
-    COMMAND ${CMAKE_SIZE} --format=berkeley $<TARGET_FILE:${PROJECT_NAME}>
-    BYPRODUCTS ${HEX_FILE} ${LST_FILE} ${BIN_FILE}
-    COMMENT "Generating ${PROJECT_NAME}.hex / .bin / .lst and size report"
-    VERBATIM
-)
+# ============================================================
+# 固件 2：Device —— 接真实设备串口(PA0/PA1) + RESET/BOOT(PA2/PA3) 的一端
+# ============================================================
+add_firmware(${PROJECT_NAME}_Device ${CMAKE_CURRENT_SOURCE_DIR}/Core/Main_dev.c nluartdevice)
