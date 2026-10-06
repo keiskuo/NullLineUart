@@ -51,8 +51,6 @@ enum uart_status {
 
 #define DATA_LEN_UART (32)
 
-extern uint8_t gBoundStatus;
-
 void    uart_bridge_init(void);
 uint8_t UART_RxQuery(void* buf, typeBufSize* len);
 void    UART_SetBuad(uint32_t buad);

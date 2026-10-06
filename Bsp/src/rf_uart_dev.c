@@ -18,24 +18,27 @@
 #include "rf.h"
 #include "uart_bridge.h"
 
-/*********************************************************************
- * GLOBAL TYPEDEFS
- */
+static struct simple_buf rf_buffer;
+static rfPackage_t*      pPkt_t;
+static rfTxBuf_t         TxBuf;
 
-rfTxBuf_t gTxBuf;
-uint32_t  gRfRxCount;
-uint16_t  gInterval;
-uint16_t  gTimeoutMax;
-uint16_t  gTimeout;
-static uint32_t gDeviceUniqueId[2];
-static uint8_t  gPairedDongleId[8];
+static volatile uint8_t  RF_bound_Flag;
+static volatile uint32_t RfDataEventTimeMs;
 
-uint8_t      gTxDataSeq;
-uint8_t      gRfStatus;
-uint8_t      gBoundStatus;
-uint8_t      getDataProbe;
-uint32_t     gRfRxFlag;
-rfPackage_t* pPkt_t;
+static uint32_t DeviceUniqueId[2];
+static uint8_t  PairedDongleId[8];
+static uint8_t  rf_buf[RF_BUF_LEN];
+
+static uint16_t Interval;
+static uint16_t TimeoutMax;
+static uint16_t Timeout;
+static uint8_t  TxDataSeq;
+static uint8_t  RfStatus;
+static uint8_t  BoundStatus;
+static uint8_t  getDataProbe;
+
+struct simple_buf* pRfBuf = NULL;
+uint32_t           gRfRxFlag;
 
 static void rfProcessRx(rfPackage_t* pPkt);
 static void rfProcessTx(void);
@@ -49,17 +52,10 @@ rfStatusCBs_t rfCBs = {
     rfProcessTimeout,
 };
 
-static uint8_t           rf_buf[RF_BUF_LEN];
-static struct simple_buf rf_buffer;
-struct simple_buf*       pRfBuf = NULL;
-
-uint8_t volatile RF_bound_Flag;
-static volatile uint32_t gRfDataEventTimeMs;
-
 __HIGH_CODE
 static void rf_record_data_event(void)
 {
-    gRfDataEventTimeMs = SysRunTime_ms;
+    RfDataEventTimeMs = SysRunTime_ms;
 }
 
 static void rf_led_update(void)
@@ -77,7 +73,7 @@ static void rf_led_update(void)
             led_off();
         }
     }
-    else if((uint32_t)(now - gRfDataEventTimeMs) < 20U)
+    else if((uint32_t)(now - RfDataEventTimeMs) < 20U)
     {
         led_on();
     }
@@ -138,7 +134,7 @@ static BOOL rf_uid_equal(const uint8_t* first, const uint8_t* second)
 __HIGH_CODE
 static void rf_disconnect(void)
 {
-    gBoundStatus = BOUND_STATUS_IDLE;
+    BoundStatus = BOUND_STATUS_IDLE;
     UART_SetTimer(ADV_INTERVAL);
     rf_tx_set_sync_word(AA);
     rf_tx_set_frequency(DEF_FREQUENCY);
@@ -152,9 +148,9 @@ static void rf_disconnect(void)
 
 static BOOL rf_write_bound_info(const rfBoundInfo_t* info)
 {
-    if(FLASH_ROM_ERASE(BOUND_INFO_FLASH_ADDR, 4096) != 0 ||
-       FLASH_ROM_WRITE(BOUND_INFO_FLASH_ADDR, (void*)info, sizeof(*info)) != 0 ||
-       FLASH_ROM_VERIFY(BOUND_INFO_FLASH_ADDR, (void*)info, sizeof(*info)) != 0)
+    if(FLASH_ROM_ERASE(BOUND_INFO_FLASH_ADDR, 4096) != 0
+       || FLASH_ROM_WRITE(BOUND_INFO_FLASH_ADDR, (void*)info, sizeof(*info)) != 0
+       || FLASH_ROM_VERIFY(BOUND_INFO_FLASH_ADDR, (void*)info, sizeof(*info)) != 0)
     {
         return FALSE;
     }
@@ -175,12 +171,12 @@ __attribute__((noinline)) static void rf_bound(bound_rsp_t* rsp)
     rfBoundInfo_t info;
     uint8_t       hasDongleId = rf_uid_valid(rsp->dongleId);
 
-    if(!hasDongleId || (rf_uid_valid(gPairedDongleId) && !rf_uid_equal(rsp->dongleId, gPairedDongleId)))
+    if(!hasDongleId || (rf_uid_valid(PairedDongleId) && !rf_uid_equal(rsp->dongleId, PairedDongleId)))
     {
         PRINT("dongle id mismatch.\n");
         return;
     }
-    if(!rf_uid_valid(gPairedDongleId))
+    if(!rf_uid_valid(PairedDongleId))
     {
         info.head = BOUND_INFO_HEAD;
         for(uint8_t index = 0; index < 8; index++)
@@ -194,15 +190,15 @@ __attribute__((noinline)) static void rf_bound(bound_rsp_t* rsp)
         }
         for(uint8_t index = 0; index < 8; index++)
         {
-            gPairedDongleId[index] = rsp->dongleId[index];
+            PairedDongleId[index] = rsp->dongleId[index];
         }
     }
 
-    gTimeout     = 0;
-    gBoundStatus = BOUND_STATUS_WAIT;
-    gRfDataEventTimeMs = SysRunTime_ms - 20U;
-    gInterval    = rsp->interval;
-    gTimeoutMax  = (rsp->timeout * 10 / rsp->interval);
+    Timeout           = 0;
+    BoundStatus       = BOUND_STATUS_WAIT;
+    RfDataEventTimeMs = SysRunTime_ms - 20U;
+    Interval          = rsp->interval;
+    TimeoutMax        = (rsp->timeout * 10 / rsp->interval);
     rf_tx_set_sync_word(rsp->accessaddr);
     rf_tx_set_frequency(rsp->channel);
     rf_tx_set_phy_type(rsp->phy);
@@ -225,7 +221,7 @@ __attribute__((noinline)) static void rf_bound(bound_rsp_t* rsp)
 __HIGH_CODE
 static void rfProcessRx(rfPackage_t* pPkt)
 {
-    if(gTxDataSeq == pPkt->seq)
+    if(TxDataSeq == pPkt->seq)
     {
         if(pPkt->type == PKT_DATA_RSP_ACK)
         {
@@ -260,10 +256,10 @@ static void rfProcessRx(rfPackage_t* pPkt)
         {
             rfRsp_t* pRsp_t = (rfRsp_t*)(pPkt + 1);
 
-            if(gBoundStatus == BOUND_STATUS_WAIT)
+            if(BoundStatus == BOUND_STATUS_WAIT)
             {
-                gBoundStatus = BOUND_STATUS_EST;
-                UART_SetTimer(gInterval);
+                BoundStatus = BOUND_STATUS_EST;
+                UART_SetTimer(Interval);
             }
 
             if(pPkt->length == PKT_DATA_OFFSET)
@@ -282,7 +278,7 @@ static void rfProcessRx(rfPackage_t* pPkt)
                 SysTick_Config(GetSysClock() / 1000);
                 mDelaymS(10);
 
-                UART_SetBuad(pRsp_t->buad_t.BaudRate);
+                UART_BaudRateCfg(pRsp_t->buad_t.BaudRate);
                 // 停止位
                 if(pRsp_t->buad_t.StopBits)
                 {
@@ -354,7 +350,7 @@ static void rfProcessRx(rfPackage_t* pPkt)
                     mDelaymS(50);
                 }
                 if(pRsp_t->other.rspData[0] == 0x21 && pRsp_t->other.rspData[1] == 0xDE)
-                {   
+                {
                     GPIOA_ResetBits(RESET_PIN);
                     mDelaymS(1);
                     GPIOA_SetBits(RESET_PIN);
@@ -378,10 +374,10 @@ static void rfProcessRx(rfPackage_t* pPkt)
         }
         else
         {}
-        gRfStatus     = RF_STATUS_IDLE;
-        gTxBuf.status = STA_IDLE;
-        gTxDataSeq++;
-        gTimeout = 0;
+        RfStatus     = RF_STATUS_IDLE;
+        TxBuf.status = STA_IDLE;
+        TxDataSeq++;
+        Timeout = 0;
     }
 }
 
@@ -397,13 +393,13 @@ static void rfProcessRx(rfPackage_t* pPkt)
 __HIGH_CODE
 static void rfProcessTx(void)
 {
-    if(gRfStatus == RF_STATUS_RETX)
+    if(RfStatus == RF_STATUS_RETX)
     {
-        gRfStatus = RF_STATUS_REWAIT;
+        RfStatus = RF_STATUS_REWAIT;
     }
     else
     {
-        gRfStatus = RF_STATUS_WAITRSP;
+        RfStatus = RF_STATUS_WAITRSP;
     }
     rf_rx_start(150);
 }
@@ -420,27 +416,27 @@ static void rfProcessTx(void)
 __HIGH_CODE
 static void rfProcessTimeout(void)
 {
-    gTxBuf.status = STA_RESEND;
-    if(gRfStatus == RF_STATUS_WAITRSP)
+    TxBuf.status = STA_RESEND;
+    if(RfStatus == RF_STATUS_WAITRSP)
     {
-        gTxBuf.resendCount = RESEND_COUNT;
+        TxBuf.resendCount = RESEND_COUNT;
     }
     else
     {
-        if(gBoundStatus == BOUND_STATUS_WAIT)
+        if(BoundStatus == BOUND_STATUS_WAIT)
         {
-            if(++gTimeout > BOUND_EST_COUNT)
+            if(++Timeout > BOUND_EST_COUNT)
             {
                 rf_disconnect();
             }
-            gTxBuf.status = STA_IDLE;
+            TxBuf.status = STA_IDLE;
         }
-        else if(gBoundStatus == BOUND_STATUS_EST)
+        else if(BoundStatus == BOUND_STATUS_EST)
         {
-            if(++gTimeout > gTimeoutMax)
+            if(++Timeout > TimeoutMax)
             {
                 rf_disconnect();
-                gTxBuf.status = STA_IDLE;
+                TxBuf.status = STA_IDLE;
             }
         }
     }
@@ -461,85 +457,85 @@ void RF_DevStatusQuery(void)
     uint8_t s;
 
     rf_led_update();
-    if(gTxBuf.status == STA_IDLE)
+    if(TxBuf.status == STA_IDLE)
     {
-        rfPackage_t* pPkt_t = (rfPackage_t*)gTxBuf.TxBuf;
+        rfPackage_t* pPkt_t = (rfPackage_t*)TxBuf.TxBuf;
 
-        gTxBuf.len = DATA_LEN_MAX_TX;
-        s          = UART_RxQuery((void*)(pPkt_t + 1), &gTxBuf.len);
+        TxBuf.len = DATA_LEN_MAX_TX;
+        s         = UART_RxQuery((void*)(pPkt_t + 1), &TxBuf.len);
         // 发送数据
         if(s == 0)
         {
-            gRfStatus      = RF_STATUS_TX;
+            RfStatus       = RF_STATUS_TX;
             pPkt_t->type   = PKT_DATA_FLAG;
-            pPkt_t->length = gTxBuf.len + PKT_DATA_OFFSET;
-            gTxBuf.status  = STA_BUSY;
-            pPkt_t->seq    = gTxDataSeq;
+            pPkt_t->length = TxBuf.len + PKT_DATA_OFFSET;
+            TxBuf.status   = STA_BUSY;
+            pPkt_t->seq    = TxDataSeq;
             pPkt_t->resv   = 0;
-            rf_tx_start(gTxBuf.TxBuf, 60);
+            rf_tx_start(TxBuf.TxBuf, 60);
         }
         else if(s == 0x80)
         {
-            if(gBoundStatus)
+            if(BoundStatus)
             {
                 // 获取状态
-                gRfStatus      = RF_STATUS_GETS;
+                RfStatus       = RF_STATUS_GETS;
                 pPkt_t->type   = PKT_CMD_GET_STATUS;
                 pPkt_t->length = PKT_DATA_OFFSET;
             }
             else
             {
                 // 请求绑定
-                bound_req_t* pReq_t = (bound_req_t*)&gTxBuf.TxBuf[PKT_HEAD_LEN];
+                bound_req_t* pReq_t = (bound_req_t*)&TxBuf.TxBuf[PKT_HEAD_LEN];
 
-                gRfStatus         = RF_STATUS_REQ;
-                pPkt_t->type      = PKT_CMD_BOUND_REQ;
-                pPkt_t->length    = PKT_DATA_OFFSET + sizeof(bound_req_t);
-                pReq_t->interval  = ADV_INTERVAL;
+                RfStatus         = RF_STATUS_REQ;
+                pPkt_t->type     = PKT_CMD_BOUND_REQ;
+                pPkt_t->length   = PKT_DATA_OFFSET + sizeof(bound_req_t);
+                pReq_t->interval = ADV_INTERVAL;
                 for(uint8_t index = 0; index < 8; index++)
                 {
-                    pReq_t->deviceId[index] = ((uint8_t*)gDeviceUniqueId)[index];
+                    pReq_t->deviceId[index] = ((uint8_t*)DeviceUniqueId)[index];
                 }
-                gTxDataSeq        = 0;
+                TxDataSeq = 0;
             }
-            gTxBuf.status = STA_BUSY;
-            pPkt_t->seq   = gTxDataSeq;
-            pPkt_t->resv  = 0;
-            rf_tx_start(gTxBuf.TxBuf, 60);
+            TxBuf.status = STA_BUSY;
+            pPkt_t->seq  = TxDataSeq;
+            pPkt_t->resv = 0;
+            rf_tx_start(TxBuf.TxBuf, 60);
         }
         else
         {
             if(getDataProbe)
             {
                 getDataProbe--;
-                gRfStatus      = RF_STATUS_GETS;
+                RfStatus       = RF_STATUS_GETS;
                 pPkt_t->type   = PKT_CMD_GET_STATUS;
                 pPkt_t->length = PKT_DATA_OFFSET;
-                gTxBuf.status  = STA_BUSY;
-                pPkt_t->seq    = gTxDataSeq;
+                TxBuf.status   = STA_BUSY;
+                pPkt_t->seq    = TxDataSeq;
                 pPkt_t->resv   = 0;
-                rf_tx_start(gTxBuf.TxBuf, 60);
+                rf_tx_start(TxBuf.TxBuf, 60);
             }
         }
     }
-    else if(gTxBuf.status == STA_RESEND)
+    else if(TxBuf.status == STA_RESEND)
     {
-        if(gTxBuf.resendCount)
+        if(TxBuf.resendCount)
         {
-            if(gTxBuf.resendCount < RESEND_COUNT / 2)
+            if(TxBuf.resendCount < RESEND_COUNT / 2)
             {
-                PRINT("*%d %d\n", gTxBuf.resendCount, gTxDataSeq);
+                PRINT("*%d %d\n", TxBuf.resendCount, TxDataSeq);
             }
-            gRfStatus = RF_STATUS_RETX;
-            if(gTxBuf.resendCount != 0xFF) gTxBuf.resendCount--;
-            gTxBuf.status = STA_BUSY;
-            rf_tx_start(gTxBuf.TxBuf, 60);
+            RfStatus = RF_STATUS_RETX;
+            if(TxBuf.resendCount != 0xFF) TxBuf.resendCount--;
+            TxBuf.status = STA_BUSY;
+            rf_tx_start(TxBuf.TxBuf, 60);
         }
         else
         {
             // 发送失败丢弃
-            PRINT(" resend fail.%d\n", gTxBuf.TxBuf[1]);
-            gTxBuf.status = STA_IDLE;
+            PRINT(" resend fail.%d\n", TxBuf.TxBuf[1]);
+            TxBuf.status = STA_IDLE;
         }
     }
 }
@@ -559,23 +555,23 @@ void RF_UartDevInit(void)
     rfBoundInfo_t info;
 
     PRINT("----------------- rf uart tx mode -----------------\n");
-    gTxDataSeq    = 0;
-    gRfRxFlag     = 0;
-    gBoundStatus  = BOUND_STATUS_IDLE;
-    gTxBuf.status = 0;
+    TxDataSeq    = 0;
+    gRfRxFlag    = 0;
+    BoundStatus  = BOUND_STATUS_IDLE;
+    TxBuf.status = 0;
     rf_buffer_create(&pRfBuf);
 
-    GET_UNIQUE_ID((uint8_t*)gDeviceUniqueId);
+    GET_UNIQUE_ID((uint8_t*)DeviceUniqueId);
     for(uint8_t index = 0; index < 8; index++)
     {
-        gPairedDongleId[index] = 0;
+        PairedDongleId[index] = 0;
     }
     FLASH_ROM_READ(BOUND_INFO_FLASH_ADDR, &info, sizeof(info));
     if(info.head == BOUND_INFO_HEAD && rf_uid_valid(info.peerId))
     {
         for(uint8_t index = 0; index < 8; index++)
         {
-            gPairedDongleId[index] = info.peerId[index];
+            PairedDongleId[index] = info.peerId[index];
         }
     }
     RFRole_RegisterStatusCbs(&rfCBs);

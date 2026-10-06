@@ -21,12 +21,8 @@
 static uint8_t            uart_buf[UART_BUF_LEN];
 static struct simple_buf* pUartbuf = NULL;
 static struct simple_buf  uart_buffer;
-
-volatile uint8_t uart_flag;
-uint32_t         gBaudRate;
-uint32_t         gSysClock;
-uint32_t         gIntervalTimer;
-uint32_t         gUartRxCount;
+static volatile uint8_t uart_flag;
+static uint32_t         IntervalTimer;
 
 #define BOUND_GET_PERI 10 // 发送绑定请求
 
@@ -77,7 +73,7 @@ void TMR_IRQHandler(void) // 定时中断
     if(TMR_GetITFlag(TMR_IT_CYC_END))
     {
         TMR_ClearITFlag(TMR_IT_CYC_END);
-        R32_TMR_CNT_END = gIntervalTimer;
+        R32_TMR_CNT_END = IntervalTimer;
         R8_TMR_CTRL_MOD = RB_TMR_ALL_CLEAR;
         R8_TMR_CTRL_MOD = RB_TMR_COUNT_EN;
         if(uart_flag == UART_STATUS_START)
@@ -98,26 +94,9 @@ void TMR_IRQHandler(void) // 定时中断
 __HIGH_CODE
 void UART_SetTimer(uint16_t ms)
 {
-    gSysClock       = GetSysClock();
-    gIntervalTimer  = gSysClock / 2000 * ms;
+    IntervalTimer   = GetSysClock() / 2000 * ms;
     R8_TMR_CTRL_MOD = RB_TMR_ALL_CLEAR;
     R8_TMR_CTRL_MOD = RB_TMR_COUNT_EN;
-}
-
-__HIGH_CODE
-void UART_SetBuad(uint32_t buad)
-{
-    if(gBaudRate != buad)
-    {
-        uint32_t x;
-        gSysClock = GetSysClock();
-        PRINT("bsp = %d\n", buad);
-        mDelaymS(1);
-        gBaudRate   = buad;
-        x           = 10 * gSysClock / 8 / buad;
-        x           = (x + 5) / 10;
-        R16_UART_DL = (uint16_t)x;
-    }
 }
 
 /************************************************************************
@@ -176,7 +155,6 @@ void UART_Send(char* data, uint16_t size)
             ;                  /* 等待数据发送 */
         R8_UART_THR = *data++; /* 发送数据 */
     }
-    // while (( R8_UART_LSR & RB_LSR_TX_ALL_EMP) == 0); // 等待发送完成
 }
 
 /************************************************************************
@@ -186,10 +164,7 @@ void UART_Send(char* data, uint16_t size)
  *
  * @return  none
  */
-__INTERRUPT
-
-__HIGH_CODE
-void UART_IRQHandler(void)
+__INTERRUPT __HIGH_CODE void UART_IRQHandler(void)
 {
     uint8_t     i;
     uint8_t     tmp_buf[UART_FIFO_SIZE];
@@ -220,7 +195,6 @@ void UART_IRQHandler(void)
                 uart_flag = UART_STATUS_RCVING;
                 uart_rx_timeout();
             }
-            gUartRxCount += len;
             break;
 
         case UART_II_RECV_TOUT : // 接收超时，暂时一帧数据接收完成
@@ -232,7 +206,6 @@ void UART_IRQHandler(void)
             }
             while(--i);
             write_buf(pUartbuf, tmp_buf, &len);
-            gUartRxCount += len;
             uart_flag = UART_STATUS_RCV_END;
             break;
 
@@ -283,7 +256,6 @@ int uart_start_receiving(void)
  */
 void uart_bridge_init(void)
 {
-    gSysClock = GetSysClock();
 // 设置DTR、RTS脚与ST――RESET、BOOT脚
 #if ((defined(DTR_RTS_FUNC)) && (DTR_RTS_FUNC == TRUE))
     GPIOA_SetBits((DTR_PIN | RTS_PIN));
