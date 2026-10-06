@@ -289,7 +289,8 @@ void uart_bridge_init(void)
     GPIOA_SetBits((DTR_PIN | RTS_PIN));
     GPIOA_ModeCfg((DTR_PIN | RTS_PIN), GPIO_ModeOut_PP_5mA);
 #else
-    GPIOA_SetBits((RESET_PIN | BOOT_PIN));
+    GPIOA_SetBits(RESET_PIN);
+    GPIOA_ResetBits(BOOT_PIN);
     GPIOA_ModeCfg((RESET_PIN | BOOT_PIN), GPIO_ModeOut_PP_5mA);
 #endif
     // 默认波特率 115200 PA0-TXD PA1-RXD

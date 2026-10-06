@@ -279,7 +279,7 @@ static void rfProcessRx(rfPackage_t* pPkt)
                 {
                     SetSysClock(CLK_SOURCE_HSE_PLL_24MHz);
                 }
-                    SysTick_Config(GetSysClock() / 1000);
+                SysTick_Config(GetSysClock() / 1000);
                 mDelaymS(10);
 
                 UART_SetBuad(pRsp_t->buad_t.BaudRate);
@@ -352,6 +352,12 @@ static void rfProcessRx(rfPackage_t* pPkt)
                     mDelaymS(1);
                     GPIOA_ResetBits(BOOT_PIN);
                     mDelaymS(50);
+                }
+                if(pRsp_t->other.rspData[0] == 0x21 && pRsp_t->other.rspData[1] == 0xDE)
+                {   
+                    GPIOA_ResetBits(RESET_PIN);
+                    mDelaymS(1);
+                    GPIOA_SetBits(RESET_PIN);
                 }
 #endif
                 {
