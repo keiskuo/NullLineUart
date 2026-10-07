@@ -16,6 +16,7 @@ extern "C"
 #include <CH572rf.h>
 #include "CH57x_common.h"
 #include "buf.h"
+#include "sys_info.h"
 
 #define  DEF_FREQUENCY   17              // 通信频点
 #define  TEST_PHY_MODE   PHY_MODE_PHY_2M
@@ -200,7 +201,7 @@ typedef struct __attribute__((aligned(4)))
 } rfBoundInfo_t;
 
 #define  BOUND_INFO_HEAD         0X31444955 // 更新为完整的64位设备UID
-#define  BOUND_INFO_FLASH_ADDR   (1024U * 236U)
+#define  BOUND_INFO_FLASH_ADDR   SYS_INFO_FLASH_ADDR // 与 IAP 镜像标志共用末尾 4K 扇区
 
 
 /* respond opcode define */

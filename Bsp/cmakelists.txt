@@ -8,6 +8,7 @@ PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/buf.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/rf.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/led.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sys_info.c
 )
 
 target_include_directories(nluartlib

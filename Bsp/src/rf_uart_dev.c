@@ -16,6 +16,7 @@
 
 #include "led.h"
 #include "rf.h"
+#include "sys_info.h"
 #include "uart_bridge.h"
 
 static struct simple_buf rf_buffer;
@@ -148,13 +149,8 @@ static void rf_disconnect(void)
 
 static BOOL rf_write_bound_info(const rfBoundInfo_t* info)
 {
-    if(FLASH_ROM_ERASE(BOUND_INFO_FLASH_ADDR, 4096) != 0
-       || FLASH_ROM_WRITE(BOUND_INFO_FLASH_ADDR, (void*)info, sizeof(*info)) != 0
-       || FLASH_ROM_VERIFY(BOUND_INFO_FLASH_ADDR, (void*)info, sizeof(*info)) != 0)
-    {
-        return FALSE;
-    }
-    return TRUE;
+    // 与 IAP 镜像标志共用同一扇区，内部读-改-写避免清掉 ImageFlag
+    return sys_info_save_peer(info->peerId);
 }
 
 /*******************************************************************************

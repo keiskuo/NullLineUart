@@ -13,6 +13,7 @@
 #include "led.h"
 #include "rf.h"
 #include "rf_uart_dongle.h"
+#include "sys_info.h"
 #include "uart_debug.h"
 #include "usb_uart.h"
 
@@ -31,6 +32,9 @@ int main()
     HSECFG_Capacitance(HSECap_12p);
     SetSysClock(CLK_SOURCE_HSE_PLL_100MHz);
     SysTick_Config(GetSysClock() / 1000); /* mDelaymS 延时基准 */
+
+    // 上电即标记 APP 镜像：升级跳回或 app 跑飞后，下次上电 boot 仍可正确判断
+    sys_info_switch_app();
 
     led_init();        /* PA7 */
     uart_debug_init(); /* PA3 UART0，PRINT 调试输出 */

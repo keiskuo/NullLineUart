@@ -13,6 +13,7 @@
 
 #include "led.h"
 #include "rf.h"
+#include "sys_info.h"
 #include "usb_uart.h"
 
 static struct simple_buf* pRfBuf = NULL;
@@ -100,27 +101,12 @@ static BOOL rf_uid_equal(const uint8_t* first, const uint8_t* second)
 __HIGH_CODE
 static BOOL rf_save_bound_info(const uint8_t* deviceId)
 {
-    rfBoundInfo_t info;
-
     if(!rf_uid_valid(deviceId))
     {
         return FALSE;
     }
-    info.head = BOUND_INFO_HEAD;
-    for(uint8_t index = 0; index < 8; index++)
-    {
-        info.peerId[index] = deviceId[index];
-    }
-
-    if(FLASH_ROM_ERASE(BOUND_INFO_FLASH_ADDR, 4096) != 0)
-    {
-        return FALSE;
-    }
-    if(FLASH_ROM_WRITE(BOUND_INFO_FLASH_ADDR, &info, sizeof(info)) != 0)
-    {
-        return FALSE;
-    }
-    return FLASH_ROM_VERIFY(BOUND_INFO_FLASH_ADDR, &info, sizeof(info)) == 0;
+    // 与 IAP 镜像标志共用同一扇区，内部读-改-写避免清掉 ImageFlag
+    return sys_info_save_peer(deviceId);
 }
 
 /*******************************************************************************
