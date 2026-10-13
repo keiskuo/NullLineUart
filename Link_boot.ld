@@ -95,7 +95,7 @@ SECTIONS
 	  KEEP (*crtbegin?.o(.ctors))
 	  KEEP (*(EXCLUDE_FILE (*crtend.o *crtend?.o ) .ctors))
 	  KEEP (*(SORT(.ctors.*)))
-	  KEEP (*(*))
+	  KEEP (*(.ctors))
 	} >FLASH AT>FLASH
 
 	.dtors          :
@@ -104,7 +104,7 @@ SECTIONS
 	  KEEP (*crtbegin?.o(.dtors))
 	  KEEP (*(EXCLUDE_FILE (*crtend.o *crtend?.o ) .dtors))
 	  KEEP (*(SORT(.dtors.*)))
-	  KEEP (*(*))
+	  KEEP (*(.dtors))
 	} >FLASH AT>FLASH
 
 	.dlalign :

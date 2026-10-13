@@ -32,6 +32,7 @@ extern "C"
     void    USB_Init(void);
     void    USB_StatusQuery(void);
     uint8_t USB_RxQuery(void* buf, typeBufSize* len);
+    uint8_t USB_PollEnterBoot(void); /* 1=收到进 boot 指令(读后自动清) */
 
 #ifdef __cplusplus
 }

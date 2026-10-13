@@ -46,5 +46,18 @@ int main()
     {
         USB_StatusQuery();
         RF_LedUpdate();
+
+        if(USB_PollEnterBoot()) /* COM 口收到进 boot 魔数 */
+        {
+            sys_info_enter_iap(SYS_BOOT_MODE_USB);
+            DelayMs(20); /* 等待残余 USB 数据发送 */
+            /* 复位前先干净断开 USB：让主机看到"设备移除"，
+               否则 CH340(0x7523) 连接中直接复位会导致重枚举
+               PID 0x55E0 时枚举状态错乱 → 设备描述符请求失败 */
+            R8_USB_CTRL = RB_UC_RESET_SIE;
+            R16_PIN_ALTERNATE &= ~(RB_UDP_PU_EN | RB_PIN_USB_EN);
+            DelayMs(100); /* 给主机识别断开的时间 */
+            SYS_ResetExecute(); /* 复位进 boot（boot 按 USB 通道升级） */
+        }
     }
 }

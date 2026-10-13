@@ -77,6 +77,9 @@ add_firmware(${PROJECT_NAME}_Boot
              ${CMAKE_CURRENT_SOURCE_DIR}/Core/Main_boot.c
              ""
              ${CMAKE_CURRENT_SOURCE_DIR}/Link_boot.ld)
+# boot 专用：USB IAP 通道（官方 USB_IAP 移植）
+target_sources(${PROJECT_NAME}_Boot PRIVATE
+               ${CMAKE_CURRENT_SOURCE_DIR}/Bsp/src/iap_usb.c)
 
 # ---- boot.bin -> 可重定位目标文件，注入 App 镜像 0x0~0x8000 ----
 set(BOOT_BIN ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}_Boot.bin)

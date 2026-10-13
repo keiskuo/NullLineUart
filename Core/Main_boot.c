@@ -22,6 +22,7 @@
  *******************************************************************************/
 
 #include "CH57x_common.h"
+#include "iap_usb.h"
 #include "led.h"
 #include "sys_info.h"
 
@@ -34,7 +35,7 @@
  * @brief   跳转 app：先关 SysTick 与全局中断双保险，再裸跳
  */
 __HIGH_CODE
-static void boot_jump_app(void)
+void boot_jump_app(void)
 {
     SysTick->CTLR = 0;    /* 关 SysTick 外设（STE/STIE 全清） */
     SysTick->CNTL = 0;
@@ -67,7 +68,14 @@ int main(void)
     led_init();
     led_on(); // 常亮：指示处于 IAP 模式
 
-    // Step2 骨架：升级通道尚未接入，超时后跳回 app
+    /* 按启动通道分流：USB(Dongle) / UART(Detach, Step4 接入) */
+    if(info.bootMode == SYS_BOOT_MODE_USB)
+    {
+        iap_usb_init();
+        iap_usb_poll(); /* 内部含超时无数据 → boot_jump_app */
+    }
+
+    // Step4 前占位：UART(RF) 升级通道尚未接入，超时后跳回 app
     for(uint32_t waited = 0; waited < BOOT_IDLE_TIMEOUT_MS; waited += 100)
     {
         DelayMs(100);

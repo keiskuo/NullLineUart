@@ -272,6 +272,56 @@ static struct simple_buf *pUsbBuf = NULL;
 static struct simple_buf usb_buffer;
 static uint8_t usb_buf[USB_BUF_LEN];
 
+/* ===== 进入 boot 魔数扫描（Step3: Dongle USB 升级） ===== */
+/* 魔数: ESC 'I' 'A' 'P' 'D' 'L' 'G' ESC */
+static const uint8_t sEnterBootMagic[] = {0x1B, 'I', 'A', 'P', 'D', 'L', 'G', 0x1B};
+static uint8_t sMagicIdx = 0;
+static volatile uint8_t sEnterBootFlag = 0;
+
+/*********************************************************************
+ * @fn      usb_scan_enter_boot
+ *
+ * @brief   逐字节滑动匹配进 boot 魔数（USB OUT 数据流）
+ */
+__HIGH_CODE
+static void usb_scan_enter_boot(const uint8_t *data, typeBufSize len)
+{
+    for(typeBufSize i = 0; i < len; i++)
+    {
+        if(data[i] == sEnterBootMagic[sMagicIdx])
+        {
+            sMagicIdx++;
+            if(sMagicIdx >= sizeof(sEnterBootMagic))
+            {
+                sMagicIdx = 0;
+                sEnterBootFlag = 1;
+                return;
+            }
+        }
+        else
+        {
+            sMagicIdx = (data[i] == sEnterBootMagic[0]) ? 1 : 0;
+        }
+    }
+}
+
+/*********************************************************************
+ * @fn      USB_PollEnterBoot
+ *
+ * @brief   查询是否收到进 boot 指令（读后自动清除）
+ *
+ * @return  1 = 收到
+ */
+uint8_t USB_PollEnterBoot(void)
+{
+    if(sEnterBootFlag)
+    {
+        sEnterBootFlag = 0;
+        return 1;
+    }
+    return 0;
+}
+
 /*********************************************************************
  * @fn      uart_buffer_create
  *
@@ -556,6 +606,7 @@ void USB_IRQHandler(void)
             typeBufSize data_len;
 
             data_len = usb_irq_len[usb_irq_w_idx];
+            usb_scan_enter_boot((const uint8_t *)Ep2Buffer, data_len); /* 扫描进 boot 魔数 */
             gEnd2DataLen = write_buf( pUsbBuf,Ep2Buffer, &data_len );
             if( !data_len )
             {
