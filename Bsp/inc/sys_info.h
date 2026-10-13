@@ -29,6 +29,12 @@ extern "C"
 #define SYS_BOOT_MODE_USB  0x00 // Dongle：官方 USB IAP
 #define SYS_BOOT_MODE_UART 0x01 // Device：经 Dongle 透传的 UART IAP
 
+    /* App 链接起始地址：boot 独占 0x0 ~ APP_CODE_START，Link.ld 与 boot 保持一致 */
+#define APP_CODE_START_ADDR 0x00008000u
+#define APP_CODE_END_ADDR   0x0003B000u /* 末尾 4K 为共享信息页，不可侵入 */
+
+#define jumpApp ((void (*)(void))((int*)APP_CODE_START_ADDR))
+
     /**
      * @brief 扇区内容。前 12 字节与旧版配对信息(rfBoundInfo_t)布局兼容，
      *        旧固件写入的数据在新固件下配对信息依然有效。

@@ -9,6 +9,15 @@ MEMORY
 
 SECTIONS
 {
+	/* IAP boot 映像（构建期由 iap_blob.o 注入），固定占据 0x0 ~ 0x8000 */
+	.iap :
+	{
+		KEEP(*(.iap))
+		/* 不足 0x8000 用 0 填充，确保 App 恒从 APP_CODE_START 起 */
+		. = 0x8000;
+	} >FLASH AT>FLASH
+	ASSERT(SIZEOF(.iap) <= 0x8000, "IAP boot exceeds 32K, increase APP_CODE_START_ADDR")
+
 	.init :
 	{
 		_sinit = .;

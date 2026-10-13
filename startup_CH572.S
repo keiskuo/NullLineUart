@@ -166,7 +166,7 @@ handle_reset:
 	li t0, 0x1
 	csrw 0xbc1, t0
 	
-    li t0, 0x88
+    li t0, 0x1888
     csrw mstatus, t0
 	la t0, _vector_base
 
