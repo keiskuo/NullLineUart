@@ -28,8 +28,8 @@ int main(void)
     // 关闭两线调试
     R16_PIN_ALTERNATE &= ~RB_PIN_DEBUG_EN;
     HSECFG_Capacitance(HSECap_12p);
-    /*上电先跑 24MHz；收到 OPCODE_BSP 后按对端波特率在
-      rf_uart_dev.c: rfProcessRx() 内切 24M / 100M */
+    /* 上电先跑 24MHz（原设计）；收到 OPCODE_BSP 后按对端波特率在
+       rf_uart_dev.c: rfProcessRx() 内切 24M / 100M */
     SetSysClock(CLK_SOURCE_HSE_PLL_24MHz);
     SysTick_Config(GetSysClock() / 1000); /* 为 LED 活动脉冲和 mDelaymS 提供毫秒时基 */
     // 上电即标记 APP 镜像：升级跳回或 app 跑飞后，下次上电 boot 仍可正确判断

@@ -15,7 +15,7 @@
 
 #include "buf.h"
 
-#define UART_BUF_LEN (1024 * 3)
+#define UART_BUF_LEN (1024 * 1) /* 设备串口缓冲；缩小以给 RF 调用链留足栈空间 */
 
 #define TXD_PIN (1 << 0) // PA0
 #define RXD_PIN (1 << 1) // PA1
