@@ -64,8 +64,8 @@ function(add_firmware TARGET_NAME MAIN_SOURCE ROLE_LIB LD_SCRIPT)
                                  --line-numbers --wide
                                  $<TARGET_FILE:${TARGET_NAME}> > ${FW_LST}
         COMMAND ${CMAKE_SIZE} --format=berkeley $<TARGET_FILE:${TARGET_NAME}>
+        COMMAND ${CMAKE_COMMAND} -E echo "Generating ${TARGET_NAME}.hex / .bin / .lst and size report"
         BYPRODUCTS ${FW_HEX} ${FW_LST} ${FW_BIN}
-        COMMENT "Generating ${TARGET_NAME}.hex / .bin / .lst and size report"
         VERBATIM
     )
 endfunction()
@@ -92,8 +92,8 @@ add_custom_command(
     COMMAND ${CMAKE_OBJCOPY} -I binary -O elf32-littleriscv
             --rename-section .data=.iap,alloc,load,readonly,contents
             ${BOOT_BIN} ${IAP_BLOB_OBJ}
+    COMMAND ${CMAKE_COMMAND} -E echo "Packing ${PROJECT_NAME}_Boot.bin into iap_blob.o (.iap)"
     DEPENDS ${PROJECT_NAME}_Boot
-    COMMENT "Packing ${PROJECT_NAME}_Boot.bin into iap_blob.o (.iap)"
     VERBATIM
 )
 add_custom_target(iap_blob DEPENDS ${IAP_BLOB_OBJ})
@@ -125,17 +125,26 @@ target_sources(${PROJECT_NAME}_Device PRIVATE ${IAP_BLOB_OBJ})
 add_dependencies(${PROJECT_NAME}_Device iap_blob)
 
 # ============================================================
-# 后处理：App-only hex（不含 boot，供官方 WCHMcuIAP 工具升级用）
-# ${TARGET}.hex 本身已含 boot+app，可直接烧录
+# 后处理：App-only hex / bin（不含 boot，同时生成两种格式的 app 文件，
+# 供支持 HEX 或 BIN 烧录的工具用于升级）
+# ${TARGET}.bin / ${TARGET}.hex 本身均含 boot+app，可直接烧录
 # ============================================================
 foreach(APP_TGT ${PROJECT_NAME}_Dongle ${PROJECT_NAME}_Device)
     add_custom_command(
         TARGET ${APP_TGT} POST_BUILD
+        # ---- 生成 BIN 格式 app-only 文件 ----
+        COMMAND ${CMAKE_OBJCOPY} -R .iap -O binary
+                $<TARGET_FILE:${APP_TGT}>
+                ${CMAKE_CURRENT_BINARY_DIR}/${APP_TGT}_app.bin
+        # ---- 生成 HEX 格式 app-only 文件 ----
         COMMAND ${CMAKE_OBJCOPY} -R .iap -O ihex
                 $<TARGET_FILE:${APP_TGT}>
                 ${CMAKE_CURRENT_BINARY_DIR}/${APP_TGT}_app.hex
-        BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${APP_TGT}_app.hex
-        COMMENT "Generating ${APP_TGT}_app.hex (app-only, for WCHMcuIAP)"
+        COMMAND ${CMAKE_COMMAND} -E echo "Generating ${APP_TGT}_app.hex / .bin (app-only, for flashing)"
+        # 同时声明两个产物文件
+        BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${APP_TGT}_app.bin ${CMAKE_CURRENT_BINARY_DIR}/${APP_TGT}_app.hex
         VERBATIM
     )
+
+# 依次生成 bin 与 hex 两种格式
 endforeach()
