@@ -49,7 +49,7 @@ void boot_jump_app(void)
     PFIC_DisableIRQ(BLEL_IRQn); /* 关 BLEL 中断使能 */
     SysTick->CTLR = 0;          /* 关 SysTick 外设（STE/STIE 全清） */
     SysTick->CNTL = 0;
-    PFIC_DisableAllIRQ();       /* 清 mstatus.MIE（boot 运行在 M-mode，合法） */
+    PFIC_DisableAllIRQ(); /* 清 mstatus.MIE（boot 运行在 M-mode，合法） */
     jumpApp();
 }
 
@@ -65,8 +65,7 @@ int main(void)
     R16_PIN_ALTERNATE &= ~RB_PIN_DEBUG_EN;
     HSECFG_Capacitance(HSECap_12p);
     SetSysClock(CLK_SOURCE_HSE_PLL_100MHz);
-    /* 不调 SysTick_Config：boot 全程不开中断（见文件头约束 1） */
-
+    SysTick_Config(GetSysClock() / 1000); /* dev boot 需毫秒时基 */
     sys_info_t info;
     sys_info_read(&info);
     if(info.ImageFlag != FLAG_USER_CALL_IAP)
@@ -86,12 +85,11 @@ int main(void)
     }
     else /* SYS_BOOT_MODE_UART：RF 链路上的 UART-IAP 升级（dev 端） */
     {
-        SysTick_Config(GetSysClock() / 1000); /* dev boot 需毫秒时基 */
-        iap_uart_init();                      /* 复位 IAP 状态机 */
+        iap_uart_init();                       /* 复位 IAP 状态机 */
         iap_uart_set_yield(RF_DevStatusQuery); /* 长擦除块间服务 RF，保持 dongle 链接 */
-        iap_bridge_init();                    /* RF字节环形缓冲 */
-        RFRole_Init();                        /* 射频硬件 + 中断 */
-        RF_UartDevInit();                     /* 读配对信息 + 注册收发回调 */
+        iap_bridge_init();                     /* RF字节环形缓冲 */
+        RFRole_Init();                         /* 射频硬件 + 中断 */
+        RF_UartDevInit();                      /* 读配对信息 + 注册收发回调 */
         while(1)
         {
             iap_bridge_pump();    /* 【关键】排空 pRfBuf → IAP状态机(RF收到的ERASE等数据) */

@@ -14,9 +14,9 @@
 #include "CH57x_common.h"
 #include "buf.h"
 
-#define ADV_INTERVAL          20
-#define RESEND_COUNT          40
-#define RF_BUF_LEN            256
+#define ADV_INTERVAL 20
+#define RESEND_COUNT 40
+#define RF_BUF_LEN   256
 
 extern uint32_t           gRfRxFlag;
 extern struct simple_buf* pRfBuf;
@@ -28,5 +28,6 @@ extern struct simple_buf* pRfBuf;
 
 void RF_UartDevInit(void);
 void RF_DevStatusQuery(void);
+void rf_led_update(void);
 
 #endif

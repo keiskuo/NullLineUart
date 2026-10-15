@@ -43,8 +43,8 @@ uint32_t           gRfRxFlag;
 
 /* ===== 进入 boot 魔数扫描（dev app：PC 经 dongle 透传 ESC IAPDEV ESC） ===== */
 static const uint8_t sDevIapMagic[] = {0x1B, 'I', 'A', 'P', 'D', 'E', 'V', 0x1B};
-static uint8_t       sDevMagicIdx = 0;
-uint8_t              gDevEnterIap = 0;
+static uint8_t       sDevMagicIdx   = 0;
+uint8_t              gDevEnterIap   = 0;
 
 __HIGH_CODE
 static void rf_scan_dev_iap(const uint8_t* data, typeBufSize len)
@@ -57,7 +57,7 @@ static void rf_scan_dev_iap(const uint8_t* data, typeBufSize len)
             if(sDevMagicIdx >= sizeof(sDevIapMagic))
             {
                 sDevMagicIdx = 0;
-                gDevEnterIap  = 1;
+                gDevEnterIap = 1;
                 return;
             }
         }
@@ -86,7 +86,7 @@ static void rf_record_data_event(void)
     RfDataEventTimeMs = SysRunTime_ms;
 }
 
-static void rf_led_update(void)
+void rf_led_update(void)
 {
     uint32_t now = SysRunTime_ms;
 
@@ -259,7 +259,7 @@ static void rfProcessRx(rfPackage_t* pPkt)
                     rfRsp_t* pRsp_t = (rfRsp_t*)(pPkt_t + 1);
                     len             = pPkt_t->length - PKT_DATA_OFFSET - 1;
                     rf_scan_dev_iap(pRsp_t->other.rspData, len);
-                    gRfRxFlag       = write_buf(pRfBuf, pRsp_t->other.rspData, &len);
+                    gRfRxFlag = write_buf(pRfBuf, pRsp_t->other.rspData, &len);
                     if(!len)
                     {
                         UART_Send(pRsp_t->other.rspData, pPkt_t->length - PKT_DATA_OFFSET - 1);
@@ -384,7 +384,7 @@ static void rfProcessRx(rfPackage_t* pPkt)
                     rfRsp_t* pRsp_t = (rfRsp_t*)(pPkt_t + 1);
                     len             = pPkt_t->length - PKT_DATA_OFFSET - 1;
                     rf_scan_dev_iap(pRsp_t->other.rspData, len);
-                    gRfRxFlag       = write_buf(pRfBuf, pRsp_t->other.rspData, &len);
+                    gRfRxFlag = write_buf(pRfBuf, pRsp_t->other.rspData, &len);
                     if(!len)
                     {
                         UART_Send(pRsp_t->other.rspData, pPkt_t->length - PKT_DATA_OFFSET - 1);
@@ -481,7 +481,6 @@ void RF_DevStatusQuery(void)
 {
     uint8_t s;
 
-    rf_led_update();
     if(TxBuf.status == STA_IDLE)
     {
         rfPackage_t* pPkt_t = (rfPackage_t*)TxBuf.TxBuf;

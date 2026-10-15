@@ -4,9 +4,9 @@
  * @version   1.0.0
  * @date      2026-10-08
  *
- * @brief boot �?USB IAP 通道（移植官�?USB_IAP 例程�?
+ * @brief boot 的 USB IAP 通道（移植官方 USB_IAP 例程）
  *        VID 0x1A86 / PID 0x55E0，EP2 bulk 64B，纯轮询不开中断
- *        （轮询可避免 jumpApp 前中断残�?+ 向量表拷贝冲突）�?
+ *        （轮询可避免 jumpApp 前中断残留 + 向量表拷贝冲突）
  *******************************************************************************/
 
 #include "iap_usb.h"
@@ -16,22 +16,22 @@
 
 #define DevEP0SIZE 64
 
-/* ---- USB 描述符（官方 USB_IAP，PID 0x55E0�?---- */
-// 设备描述�?
+/* ---- USB 描述符（官方 USB_IAP，PID 0x55E0） ---- */
+// 设备描述符
 const uint8_t MyDevDescr[] =
 {
     0x12, 0x01, 0x10, 0x01, 0xFF, 0x80, 0x55,
     DevEP0SIZE, 0x86, 0x1A, 0xE0, 0x55, // VID/PID = 0x1A86/0x55E0
     0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
 };
-// 配置描述�?
+// 配置描述符
 const uint8_t MyCfgDescr[] =
 {
     0x09, 0x02, 0x20, 0x00, 0x01, 0x01, 0x00, 0x80, 0x32, 0x09, 0x04, 0x00, 0x00,
     0x02, 0xFF, 0x80, 0x55, 0x00, 0x07, 0x05, 0x82, 0x02, 0x40, 0x00, 0x00,
     0x07, 0x05, 0x02, 0x02, 0x40, 0x00, 0x00
 };
-// 语言描述�?
+// 语言描述符
 const uint8_t MyLangDescr[] =
 { 0x04, 0x03, 0x09, 0x04 };
 // 厂家信息
@@ -46,12 +46,12 @@ uint8_t SetupReqCode;
 uint16_t SetupReqLen;
 const uint8_t *pDescr;
 
-/* ---- 端点 DMA 缓冲（用户自定义 RAM�?---- */
+/* ---- 端点 DMA 缓冲（用户自定义 RAM） ---- */
 __attribute__((aligned(4))) uint8_t EP0_Databuf[64];      // ep0(64)，仅需 setup
 __attribute__((aligned(4))) uint8_t EP2_Databuf[64 + 64]; // ep2_out(64)+ep2_in(64)
 /* EP1/EP3 未被 IAP 使用（描述符仅 EP0/EP2），不分配缓冲以节省 RAM */
 
-__attribute__((aligned(4))) uint8_t g_write_buf[256 + 64]; // 每满 256 字节写一�?flash
+__attribute__((aligned(4))) uint8_t g_write_buf[256 + 64]; // 每满 256 字节写一次 flash
 volatile uint16_t g_buf_write_ptr = 0;
 volatile uint32_t g_flash_write_ptr = 0;
 uint32_t g_tcnt = 0;
@@ -65,7 +65,7 @@ static void my_memcpy(void *dst, const void *src, uint32_t len);
 /*********************************************************************
  * @fn      iap_usb_process
  *
- * @brief   USB 传输处理（轮询调用），移植官�?USB_DevTransProcess
+ * @brief   USB 传输处理（轮询调用），移植官方 USB_DevTransProcess
  */
 __HIGH_CODE
 static void iap_usb_process(void)
@@ -138,7 +138,7 @@ static void iap_usb_process(void)
             errflag      = 0;
             if((pSetupReqPak->bRequestType & USB_REQ_TYP_MASK) != USB_REQ_TYP_STANDARD)
             {
-                errflag = 0xFF; /* 非标准请�?*/
+                errflag = 0xFF; /* 非标准请求 */
             }
             else /* 标准请求 */
             {
@@ -179,9 +179,9 @@ static void iap_usb_process(void)
                         errflag = 0xFF;
                         break;
                     }
-                    /* 同官�?206-213 行：截断到描述符实际长度�?
-                       并把首包描述符数据预取进 EP0 缓冲（否�?EP0 �?
-                       仍是 SETUP 包内容，主机读到垃圾 �?描述符失败） */
+                    /* 同官方 206-213 行：截断到描述符实际长度
+                       并把首包描述符数据预取进 EP0 缓冲（否则 EP0 仍是 SETUP 包内容，
+                       主机读到垃圾数据导致描述符失败） */
                     if(SetupReqLen > len)
                     {
                         SetupReqLen = len;
@@ -256,7 +256,7 @@ static void iap_usb_process(void)
                     break;
                 }
             }
-            if(errflag == 0xff) /* 请求不支持，返回 STALL */
+            if(errflag == 0xFF) /* 请求不支持，返回 STALL */
             {
                 R8_UEP0_CTRL = RB_UEP_R_TOG | RB_UEP_T_TOG | UEP_R_RES_STALL | UEP_T_RES_STALL;
             }
@@ -299,7 +299,7 @@ static void iap_usb_process(void)
 /*********************************************************************
  * @fn      myDevEP2_OUT_Deal
  *
- * @brief   端点2 数据下传：解�?IAP 命令并操�?Flash
+ * @brief   端点2 数据下传：解析 IAP 命令并操作 Flash
  */
 __HIGH_CODE
 static void myDevEP2_OUT_Deal(uint8_t l)
@@ -362,7 +362,7 @@ static void myDevEP2_OUT_Deal(uint8_t l)
         myDevEP2_IN_Deal(s);
         break;
 
-    case CMD_IAP_END: /* 结束：复�?USB 后跳�?app */
+    case CMD_IAP_END: /* 结束：复位 USB 后跳回 app */
         R8_USB_CTRL = RB_UC_RESET_SIE;
         R16_PIN_ALTERNATE &= ~(RB_UDP_PU_EN | RB_PIN_USB_EN);
         DelayMs(10);
@@ -379,7 +379,7 @@ static void myDevEP2_OUT_Deal(uint8_t l)
 /*********************************************************************
  * @fn      myDevEP2_IN_Deal
  *
- * @brief   端点2 数据上传：回�?2 字节状�?
+ * @brief   端点2 数据上传：返回 2 字节状态
  */
 __HIGH_CODE
 static void myDevEP2_IN_Deal(uint8_t s)
@@ -393,7 +393,7 @@ static void myDevEP2_IN_Deal(uint8_t s)
 /*********************************************************************
  * @fn      my_memcpy
  *
- * @brief   数据拷贝（RAM 中运行，避免擦写 flash 期间执行冲突�?
+ * @brief   数据拷贝（RAM 中运行，避免擦写 flash 期间执行冲突）
  */
 __HIGH_CODE
 static void my_memcpy(void *dst, const void *src, uint32_t len)
@@ -410,12 +410,12 @@ static void my_memcpy(void *dst, const void *src, uint32_t len)
 /*********************************************************************
  * @fn      iap_usb_init
  *
- * @brief   USB 设备初始化（轮询模式，不开 USB 中断，同官方 USB_IAP�?
+ * @brief   USB 设备初始化（轮询模式，不开 USB 中断，同官方 USB_IAP）
  */
 void iap_usb_init(void)
 {
     R16_PIN_ALTERNATE &= ~RB_PIN_DEBUG_EN;
-    R8_USB_CTRL = 0x00; // 清除设定模式，取�?RB_UC_CLR_ALL
+    R8_USB_CTRL = 0x00; // 清除设定模式，取代 RB_UC_CLR_ALL
     R8_UEP4_1_MOD = RB_UEP4_RX_EN | RB_UEP4_TX_EN | RB_UEP1_RX_EN | RB_UEP1_TX_EN;
     R8_UEP2_3_MOD = RB_UEP2_RX_EN | RB_UEP2_TX_EN | RB_UEP3_RX_EN | RB_UEP3_TX_EN;
 
@@ -434,14 +434,14 @@ void iap_usb_init(void)
     R16_PIN_ALTERNATE |= RB_PIN_USB_EN | RB_UDP_PU_EN;
     R8_USB_INT_FG = 0xFF;
     R8_UDEV_CTRL  = RB_UD_PD_DIS | RB_UD_PORT_EN;
-    R8_USB_INT_EN = 0; // 禁止 USB 中断，采用轮询方�?
+    R8_USB_INT_EN = 0; // 禁止 USB 中断，采用轮询方式
 }
 
 /*********************************************************************
  * @fn      iap_usb_poll
  *
- * @brief   轮询主循环（同官�?Main_Circulation）：
- *          超时�?USB 数据 �?跳回 app
+ * @brief   轮询主循环（同官方 Main_Circulation）：
+ *          超时无 USB 数据则跳回 app
  */
 void iap_usb_poll(void)
 {
@@ -449,14 +449,14 @@ void iap_usb_poll(void)
     while(1)
     {
         j++;
-        if(j > 5) // �?100us 处理一�?
+        if(j > 5) // 约 100us 处理一次
         {
             j = 0;
             iap_usb_process();
         }
         DelayUs(20);
         g_tcnt++;
-        if(g_tcnt > 3000000) // 超时无升级数�?�?跳回 app
+        if(g_tcnt > 3000000) // 超时无升级数据则跳回 app
         {
             R8_USB_CTRL = RB_UC_RESET_SIE;
             R16_PIN_ALTERNATE &= ~(RB_UDP_PU_EN | RB_PIN_USB_EN);

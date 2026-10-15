@@ -17,11 +17,12 @@ __attribute__((used)) __HIGH_CODE void process_main(void)
 {
     while(1)
     {
+        rf_led_update();
         RF_DevStatusQuery();
         if(gDevEnterIap) /* PC 经 dongle 透传的进 boot 魔数 */
         {
             sys_info_enter_iap(SYS_BOOT_MODE_UART);
-            DelayMs(20); /* 等待残余 RF 数据发送 */
+            DelayMs(20);        /* 等待残余 RF 数据发送 */
             SYS_ResetExecute(); /* 复位进 boot（RF+UART-IAP 通道） */
         }
     }
