@@ -147,7 +147,7 @@ uint8_t UART_RxQuery(void* buf, typeBufSize* len)
  * @return  none
  */
 __HIGH_CODE
-void UART_Send(char* data, uint16_t size)
+void UART_Send(uint8_t* data, uint16_t size)
 {
     for(int i = 0; i < size; i++)
     {

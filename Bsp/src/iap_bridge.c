@@ -29,7 +29,7 @@ void iap_bridge_init(void)
 
 /* rfProcessRx(RF中断)调用：把收到的字节缓存，稍后主循环处理 */
 __HIGH_CODE
-void UART_Send(char* data, uint16_t size)
+void UART_Send(uint8_t* data, uint16_t size)
 {
     if(pIapRxBuf == NULL)
     {

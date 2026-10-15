@@ -55,6 +55,6 @@ void    uart_bridge_init(void);
 uint8_t UART_RxQuery(void* buf, typeBufSize* len);
 void    UART_SetBuad(uint32_t buad);
 void    UART_SetTimer(uint16_t ms);
-void    UART_Send(char* data, uint16_t size);
+void    UART_Send(uint8_t* data, uint16_t size);
 
 #endif /* __UART_BRIDGE_H */
