@@ -22,8 +22,12 @@
  *******************************************************************************/
 
 #include "CH57x_common.h"
+#include "iap_bridge.h"
+#include "iap_uart.h"
 #include "iap_usb.h"
 #include "led.h"
+#include "rf.h"
+#include "rf_uart_dev.h"
 #include "sys_info.h"
 
 /* 无升级数据超时时间，超时后跳回 app（同官方例程 120s 量级） */
@@ -37,9 +41,15 @@
 __HIGH_CODE
 void boot_jump_app(void)
 {
-    SysTick->CTLR = 0;    /* 关 SysTick 外设（STE/STIE 全清） */
+    /* dev boot 开了 RF 中断（BLEB/BLEL）：跳转前必须关闭，否则 app 的
+       handle_reset 拷贝向量表/重建状态期间 RF 中断触发 → 跑飞卡死，
+       表现为"升级成功但 dev 停在 boot、flag 未改 APP" */
+    RFRole_Shut();              /* 停射频收发 */
+    PFIC_DisableIRQ(BLEB_IRQn); /* 关 BLEB 中断使能 */
+    PFIC_DisableIRQ(BLEL_IRQn); /* 关 BLEL 中断使能 */
+    SysTick->CTLR = 0;          /* 关 SysTick 外设（STE/STIE 全清） */
     SysTick->CNTL = 0;
-    PFIC_DisableAllIRQ(); /* 清 mstatus.MIE（boot 运行在 M-mode，合法） */
+    PFIC_DisableAllIRQ();       /* 清 mstatus.MIE（boot 运行在 M-mode，合法） */
     jumpApp();
 }
 
@@ -68,19 +78,28 @@ int main(void)
     led_init();
     led_on(); // 常亮：指示处于 IAP 模式
 
-    /* 按启动通道分流：USB(Dongle) / UART(Detach, Step4 接入) */
+    /* 按启动通道分流 */
     if(info.bootMode == SYS_BOOT_MODE_USB)
     {
         iap_usb_init();
         iap_usb_poll(); /* 内部含超时无数据 → boot_jump_app */
     }
-
-    // Step4 前占位：UART(RF) 升级通道尚未接入，超时后跳回 app
-    for(uint32_t waited = 0; waited < BOOT_IDLE_TIMEOUT_MS; waited += 100)
+    else /* SYS_BOOT_MODE_UART：RF 链路上的 UART-IAP 升级（dev 端） */
     {
-        DelayMs(100);
+        SysTick_Config(GetSysClock() / 1000); /* dev boot 需毫秒时基 */
+        iap_uart_init();                      /* 复位 IAP 状态机 */
+        iap_uart_set_yield(RF_DevStatusQuery); /* 长擦除块间服务 RF，保持 dongle 链接 */
+        iap_bridge_init();                    /* RF字节环形缓冲 */
+        RFRole_Init();                        /* 射频硬件 + 中断 */
+        RF_UartDevInit();                     /* 读配对信息 + 注册收发回调 */
+        while(1)
+        {
+            iap_bridge_pump();    /* 【关键】排空 pRfBuf → IAP状态机(RF收到的ERASE等数据) */
+            iap_bridge_process(); /* 环形缓冲兜底数据 → IAP状态机 */
+            RF_DevStatusQuery();  /* RF链路：收发 IAP 应答/数据(内部 rf_led_update) */
+            iap_uart_tick();      /* 空闲超时 → 跳回 app */
+        }
     }
-    boot_jump_app();
     return 0;
 }
 

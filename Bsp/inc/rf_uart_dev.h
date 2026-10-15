@@ -16,7 +16,7 @@
 
 #define ADV_INTERVAL          20
 #define RESEND_COUNT          40
-#define RF_BUF_LEN            512
+#define RF_BUF_LEN            256
 
 extern uint32_t           gRfRxFlag;
 extern struct simple_buf* pRfBuf;

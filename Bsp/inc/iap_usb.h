@@ -19,16 +19,19 @@ extern "C"
 #include "CH57x_common.h"
 #include "sys_info.h" /* jumpApp / APP_CODE_START_ADDR / APP_CODE_END_ADDR / bootMode */
 
-    /* IAP 命令码（官方） */
+    /* IAP 命令码（官方，与 iap_uart.h 同值，宏重定义同值合法） */
+#ifndef CMD_IAP_PROM
 #define CMD_IAP_PROM   0x80
 #define CMD_IAP_ERASE  0x81
 #define CMD_IAP_VERIFY 0x82
 #define CMD_IAP_END    0x83
-
+#endif
+#ifndef IAP_LEN
 #define IAP_LEN 64
+#endif
 
-    /* USB IAP 数据包结构（官方 USB_IAP/iap.h） */
-    typedef union _IAP_CMD_STRUCT
+    /* USB IAP 数据包结构（官方 USB_IAP/iap.h，无 SOP/EOP） */
+    typedef union _IAP_USB_CMD_STRUCT
     {
         struct
         {
@@ -59,7 +62,7 @@ extern "C"
         {
             uint8_t buf[IAP_LEN];
         } other;
-    } iap_cmd_t;
+    } iap_usb_cmd_t;
 
     /* USB IAP 通道接口 */
     void iap_usb_init(void); /* USB 设备初始化（轮询模式，PID 0x55E0） */

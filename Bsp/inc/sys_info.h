@@ -35,6 +35,11 @@ extern "C"
 
 #define jumpApp ((void (*)(void))((int*)APP_CODE_START_ADDR))
 
+    /* 进入 boot 的魔数（PC 经 COM/dongle 透传下发） */
+    /* Dongle: ESC IAPDLG ESC（usb_uart.c 扫描，进 USB 升级通道） */
+    /* Device: ESC IAPDEV ESC（rf_uart_dev.c 扫描，进 RF+UART-IAP 升级通道） */
+#define IAP_ENTER_MAGIC_LEN 8
+
     /**
      * @brief 扇区内容。前 12 字节与旧版配对信息(rfBoundInfo_t)布局兼容，
      *        旧固件写入的数据在新固件下配对信息依然有效。

@@ -41,6 +41,33 @@ static uint8_t  getDataProbe;
 struct simple_buf* pRfBuf = NULL;
 uint32_t           gRfRxFlag;
 
+/* ===== 进入 boot 魔数扫描（dev app：PC 经 dongle 透传 ESC IAPDEV ESC） ===== */
+static const uint8_t sDevIapMagic[] = {0x1B, 'I', 'A', 'P', 'D', 'E', 'V', 0x1B};
+static uint8_t       sDevMagicIdx = 0;
+uint8_t              gDevEnterIap = 0;
+
+__HIGH_CODE
+static void rf_scan_dev_iap(const uint8_t* data, typeBufSize len)
+{
+    for(typeBufSize i = 0; i < len; i++)
+    {
+        if(data[i] == sDevIapMagic[sDevMagicIdx])
+        {
+            sDevMagicIdx++;
+            if(sDevMagicIdx >= sizeof(sDevIapMagic))
+            {
+                sDevMagicIdx = 0;
+                gDevEnterIap  = 1;
+                return;
+            }
+        }
+        else
+        {
+            sDevMagicIdx = (data[i] == sDevIapMagic[0]) ? 1 : 0;
+        }
+    }
+}
+
 static void rfProcessRx(rfPackage_t* pPkt);
 static void rfProcessTx(void);
 static void rfProcessTimeout(void);
@@ -231,6 +258,7 @@ static void rfProcessRx(rfPackage_t* pPkt)
                 {
                     rfRsp_t* pRsp_t = (rfRsp_t*)(pPkt_t + 1);
                     len             = pPkt_t->length - PKT_DATA_OFFSET - 1;
+                    rf_scan_dev_iap(pRsp_t->other.rspData, len);
                     gRfRxFlag       = write_buf(pRfBuf, pRsp_t->other.rspData, &len);
                     if(!len)
                     {
@@ -355,6 +383,7 @@ static void rfProcessRx(rfPackage_t* pPkt)
                 {
                     rfRsp_t* pRsp_t = (rfRsp_t*)(pPkt_t + 1);
                     len             = pPkt_t->length - PKT_DATA_OFFSET - 1;
+                    rf_scan_dev_iap(pRsp_t->other.rspData, len);
                     gRfRxFlag       = write_buf(pRfBuf, pRsp_t->other.rspData, &len);
                     if(!len)
                     {
