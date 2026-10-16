@@ -10,6 +10,7 @@
 #include "rf_uart_dev.h"
 #include "sys_info.h"
 #include "uart_bridge.h"
+#include "version.h"
 
 extern uint8_t gDevEnterIap; /* rf_uart_dev.c：收到进 boot 魔数时置1 */
 
@@ -46,6 +47,7 @@ int main(void)
     led_init();
     uart_bridge_init();
     PRINT("start.\n");
+    PRINT(" Version Info: %s\n", FW_VERSION_FULL);
     PRINT("%s\n", VER_RF_LIB);
     RFRole_Init();    /* 射频硬件 + 使能 BLEB/BLEL 中断 */
     RF_UartDevInit(); /* 读 Flash 里的 serverData + 注册收发回调 */

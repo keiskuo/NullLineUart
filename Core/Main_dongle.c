@@ -16,6 +16,7 @@
 #include "sys_info.h"
 #include "uart_debug.h"
 #include "usb_uart.h"
+#include "version.h"
 
 /*******************************************************************************
  * @author    keiskuo (ke.l@foxmail.com)
@@ -38,6 +39,7 @@ int main()
 
     led_init();        /* PA7 */
     uart_debug_init(); /* PA3 UART0，PRINT 调试输出 */
+    PRINT(" Version Info: %s\n", FW_VERSION_FULL);
     USB_Init();
     RFRole_Init();       /* 射频硬件 + 使能 BLEB(基带)/BLEL(链路层) 中断 */
     RF_UartDongleInit(); /* 协议状态机 + 注册收发回调 */

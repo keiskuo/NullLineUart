@@ -9,13 +9,14 @@ PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/rf.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/led.c
     ${CMAKE_CURRENT_SOURCE_DIR}/src/sys_info.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/version.c
 )
 
 target_include_directories(nluartlib
 PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
 )
-target_link_libraries(nluartlib PUBLIC ch57xstdlib)
+target_link_libraries(nluartlib PUBLIC ch57xstdlib fw_version)
 
 # ============================================================
 # 2) Dongle 代码：PC 侧 USB 无线串口适配器

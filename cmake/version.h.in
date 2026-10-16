@@ -1,0 +1,28 @@
+/*******************************************************************************
+ * @file      version.h
+ * @brief     固件版本信息头 —— 由 cmake/version.h.in 生成，请勿手工修改。
+ *            版本号：根 cmakelists.txt 的 project(... VERSION x.y.z)
+ *            git 信息：configure 时从仓库提取（非 git 环境为 nogit/unknown）
+ *******************************************************************************/
+
+#ifndef __FW_VERSION_H
+#define __FW_VERSION_H
+
+/* 语义化版本号，与根 CMakeLists project(VERSION) 一致 */
+#define FW_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define FW_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define FW_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define FW_VERSION       "@PROJECT_VERSION@"
+
+/* git 信息 */
+#define FW_GIT_HASH      "@FW_GIT_HASH@"     /* 短提交哈希，如 abc1234 */
+#define FW_GIT_DESC      "@FW_GIT_DESC@"     /* describe --tags --always --dirty */
+#define FW_COMMIT_DATE   "@FW_COMMIT_DATE@"  /* 最后提交日期 YYYY-MM-DD */
+
+/* 一行完整版本串：PRINT("fw %s\n", FW_VERSION_FULL); */
+#define FW_VERSION_FULL  FW_VERSION " (" FW_GIT_HASH ", " FW_COMMIT_DATE ")"
+
+/* 版本字符串实体（Bsp/src/version.c），链接选项 -u 强制保留，任何固件均可 strings 查询 */
+extern const char gFwVersionStr[];
+
+#endif /* __FW_VERSION_H */

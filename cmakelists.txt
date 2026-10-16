@@ -3,7 +3,53 @@ cmake_minimum_required(VERSION 4.2)
 # 自动获取项目根目录文件夹名作为 PROJECT_NAME
 get_filename_component(PROJECT_DIR_NAME "${CMAKE_SOURCE_DIR}" NAME)
 
-project(${PROJECT_DIR_NAME} C CXX ASM)
+# 版本号唯一来源：改版本只需改这里的 VERSION x.y.z
+project(${PROJECT_DIR_NAME} VERSION 1.0.0 LANGUAGES C CXX ASM)
+
+# ============================================================
+# 版本信息：生成 version.h（语义版本 + git 短哈希 + 提交日期）注入固件
+#   - 哈希/日期只在 git 提交或本地暂存变化时刷新，避免无谓全量重编
+#   - 代码里 #include "version.h" 使用 FW_VERSION / FW_VERSION_FULL 等宏
+# ============================================================
+set(FW_GIT_HASH "nogit")
+set(FW_GIT_DESC "nogit")
+set(FW_COMMIT_DATE "unknown")
+find_package(Git QUIET)
+if(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} rev-parse --short=8 HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE FW_GIT_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --tags --always --dirty
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE FW_GIT_DESC
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} log -1 --format=%cd --date=format:%Y-%m-%d
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE FW_COMMIT_DATE
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+    # 提交 / 暂存区变化时自动重新 configure，刷新 version.h 中的 git 信息
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${CMAKE_SOURCE_DIR}/.git/HEAD"
+        "${CMAKE_SOURCE_DIR}/.git/index")
+endif()
+
+configure_file(
+    ${CMAKE_SOURCE_DIR}/cmake/version.h.in
+    ${CMAKE_BINARY_DIR}/generated/version.h
+    @ONLY)
+
+# 接口库：通过链接传播 version.h 的包含目录（nluartlib PUBLIC 链接 → 三个固件均可见）
+add_library(fw_version INTERFACE)
+target_include_directories(fw_version INTERFACE ${CMAKE_BINARY_DIR}/generated)
+
+message(STATUS "Firmware version: ${PROJECT_VERSION} (${FW_GIT_DESC}, ${FW_COMMIT_DATE})")
 
 add_subdirectory(StdPeriphDriver)
 add_subdirectory(Bsp)
@@ -40,6 +86,7 @@ function(add_firmware TARGET_NAME MAIN_SOURCE ROLE_LIB LD_SCRIPT)
         PRIVATE
             -T${LD_SCRIPT}
             -Wl,-Map,${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.map
+            -Wl,-u,gFwVersionStr   # 强制保留版本字符串，固件内可直接查询
     )
 
     target_link_libraries(${TARGET_NAME}
